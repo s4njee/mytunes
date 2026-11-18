@@ -1,0 +1,15 @@
+[package]
+name = "mt-app"
+description = "Desktop application use cases, independent of Tauri."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+mt-types.workspace = true
+
+[lints]
+workspace = true

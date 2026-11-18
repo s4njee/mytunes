@@ -1,0 +1,29 @@
+[package]
+name = "mytunes-desktop"
+description = "MyTunes desktop app (Tauri backend)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+name = "mytunes_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.5", features = [] }
+
+[dependencies]
+mt-app.workspace = true
+mt-types.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+specta.workspace = true
+tauri = { version = "=2.12.6", features = [] }
+tauri-specta = { version = "=2.0.0-rc.29", features = ["derive", "typescript"] }
+specta-typescript = "=0.0.15"
+
+[lints]
+workspace = true

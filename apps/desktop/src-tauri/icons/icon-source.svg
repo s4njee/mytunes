@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Placeholder app icon (original artwork; final icon is a design-gate item in E15.S2). -->
+  <defs>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2B333D"/>
+      <stop offset="0.62" stop-color="#1A2027"/>
+      <stop offset="1" stop-color="#232B34"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#0E1116"/>
+  <circle cx="512" cy="512" r="330" fill="url(#ring)"/>
+  <circle cx="512" cy="512" r="330" fill="none" stroke="#F0A23C" stroke-opacity="0.35" stroke-width="6"/>
+  <circle cx="512" cy="512" r="136" fill="#0E1116" stroke="#F0A23C" stroke-width="10"/>
+  <circle cx="512" cy="248" r="22" fill="#F0A23C"/>
+</svg>

@@ -1,0 +1,25 @@
+# Design-tool runtime and OS mock from the Claude Design export (third-party; keep local only)
+design/handoff/support.js
+design/handoff/ios-frame.jsx
+
+# Rust
+/target/
+
+# Node / desktop frontend
+node_modules/
+apps/desktop/dist/
+
+# Flutter
+apps/mobile/.dart_tool/
+apps/mobile/build/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+
+# Generated fixtures (regenerate with tools/gen_fixtures)
+fixtures/audio/generated/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

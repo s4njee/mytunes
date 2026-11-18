@@ -1,0 +1,45 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/*",
+  "tools/gen-tokens",
+  "tools/gen-fixtures",
+  "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/s4njee/mytunes"
+publish = false
+
+[workspace.dependencies]
+# Internal crates
+mt-types = { path = "crates/mt-types" }
+mt-db = { path = "crates/mt-db" }
+mt-meta = { path = "crates/mt-meta" }
+mt-audio = { path = "crates/mt-audio" }
+mt-smart = { path = "crates/mt-smart" }
+mt-sync-proto = { path = "crates/mt-sync-proto" }
+mt-sync-server = { path = "crates/mt-sync-server" }
+mt-sync-client = { path = "crates/mt-sync-client" }
+mt-app = { path = "crates/mt-app" }
+
+# External (exact pins; see docs/decisions/0001-toolchain-and-version-pins.md)
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "1"
+thiserror = "=2.0.21"
+specta = { version = "=2.0.0-rc.28", features = ["derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

@@ -1,0 +1,16 @@
+@import "./theme/tokens.css";
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background: var(--mt-bg);
+  color: var(--mt-text);
+  font-family: var(--mt-font-sans);
+}
+
+.shell {
+  padding: 24px;
+}

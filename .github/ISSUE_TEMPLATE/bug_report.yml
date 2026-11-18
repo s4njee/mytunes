@@ -1,0 +1,43 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: dropdown
+    id: app
+    attributes:
+      label: Which app?
+      options: [Desktop, Mobile (iOS), Mobile (Android), Sync between them]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS and version
+      placeholder: "e.g. CachyOS (Wayland, NVIDIA), iOS 26.1, Android 16"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Help ▸ Show Logs on desktop. Remove anything personal (file paths may contain your name).
+      render: text
+  - type: markdown
+    attributes:
+      value: "Security problems? Please don't file them here. See SECURITY.md."

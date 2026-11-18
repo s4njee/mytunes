@@ -1,0 +1,194 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# No secrets are used here, so fork PRs are safe. Release signing lives in release.yml (tags only).
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  rust:
+    name: Rust (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Linux system libraries (Tauri, audio)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev ffmpeg
+      - name: Install Rust toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/desktop/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+      # tauri::generate_context! embeds the built frontend, so it must exist before compiling.
+      - name: Build desktop frontend
+        working-directory: apps/desktop
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - name: Generated files are up to date
+        shell: bash
+        run: |
+          cargo run -q -p gen-tokens -- --check
+          git diff --exit-code -- apps/desktop/src/bindings.ts
+      - name: Generate audio fixtures
+        if: runner.os == 'Linux'
+        run: cargo run -q -p gen-fixtures
+
+  desktop:
+    name: Desktop app (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v7
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev
+      - name: Install Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: desktop
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/desktop/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - name: Build (debug)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            pnpm tauri build --debug --bundles appimage
+          else
+            pnpm tauri build --debug --no-bundle
+          fi
+      - name: End-to-end smoke test (real webview via tauri-driver)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y webkit2gtk-driver xvfb
+          cargo install tauri-driver --locked
+          xvfb-run -a pnpm e2e
+      - name: Upload Linux AppImage
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mytunes-linux-appimage
+          path: target/debug/bundle/appimage/*.AppImage
+          if-no-files-found: error
+
+  licenses:
+    name: Licences & advisories
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/desktop/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+      - name: npm licences
+        working-directory: apps/desktop
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm licenses list --json | node ../../tools/check-npm-licenses.mjs
+
+  flutter:
+    name: Flutter (analyze, test, Android debug APK)
+    runs-on: ubuntu-24.04
+    if: ${{ hashFiles('apps/mobile/pubspec.yaml') != '' }}
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: apps/mobile/pubspec.yaml
+          cache: true
+      # cargokit always builds with the `stable` toolchain (it ignores rust-toolchain.toml).
+      - name: Install Rust stable and Android targets
+        run: rustup toolchain install stable --profile minimal --target aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter build apk --debug
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mytunes-pod-android-debug
+          path: apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+  ios:
+    name: iOS build (no codesign)
+    runs-on: macos-15
+    if: ${{ hashFiles('apps/mobile/pubspec.yaml') != '' }}
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: apps/mobile/pubspec.yaml
+          cache: true
+      - name: Install Rust stable and iOS targets
+        run: rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ios
+      - run: flutter pub get
+      - run: flutter build ios --debug --no-codesign

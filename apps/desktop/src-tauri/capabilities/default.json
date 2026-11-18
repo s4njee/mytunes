@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions for the main window. Keep this least-privilege (plan.md §3.5).",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -1,0 +1,5 @@
+# flutter_rust_bridge codegen config. Regenerate with:
+#   flutter_rust_bridge_codegen generate   (run from apps/mobile)
+rust_input: crate::api
+rust_root: ../../crates/mt-ffi/
+dart_output: lib/src/rust

@@ -1,0 +1,23 @@
+[package]
+# Underscore (unlike the other mt-* crates): cargokit derives the library file name
+# from the package name, and the built file is libmt_ffi.so.
+name = "mt_ffi"
+description = "flutter_rust_bridge API surface of the Rust core for the mobile app."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+mt-types.workspace = true
+flutter_rust_bridge = "=2.13.0"
+
+# Generated bridge code needs `unsafe`, so this crate doesn't inherit the
+# workspace's `unsafe_code = "deny"`.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

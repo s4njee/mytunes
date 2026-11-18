@@ -1,0 +1,16 @@
+[package]
+name = "mt-types"
+description = "Shared domain types (IDs, tracks, albums, playlists) and errors."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+specta.workspace = true
+
+[lints]
+workspace = true
