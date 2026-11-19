@@ -1,9 +1,16 @@
-use std::path::Path;
+use std::path::PathBuf;
+
+fn fixture_dir() -> PathBuf {
+    std::env::var_os("MYTUNES_AUDIO_FIXTURE_DIR").map_or_else(
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/audio/generated"),
+        PathBuf::from,
+    )
+}
 
 #[test]
 #[ignore = "requires a CPAL playback device and generated audio fixtures"]
 fn plays_the_generated_audio_formats_through_cpal() {
-    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/audio/generated");
+    let fixtures = fixture_dir();
     for name in [
         "mp3_cbr320.mp3",
         "mp3_vbr_v2.mp3",
@@ -35,7 +42,7 @@ fn plays_a_gapless_pair_through_one_cpal_stream() {
     use cpal::traits::{DeviceTrait, HostTrait};
     use mt_audio::{DspSettings, SoundCheck};
 
-    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/audio/generated");
+    let fixtures = fixture_dir();
     let rate = cpal::default_host()
         .default_output_device()
         .unwrap()
@@ -73,14 +80,14 @@ fn shared_player_emits_track_boundaries_through_cpal() {
     use mt_types::TrackId;
     use std::time::Duration;
 
-    let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/audio/generated");
+    let fixtures = fixture_dir();
     let player = Player::new().unwrap();
     let events = player.events().unwrap();
     let pair = ["a", "b"]
         .into_iter()
         .map(|id| QueueItem {
             id: TrackId(id.into()),
-            path: fixture_root.join(format!("gapless_{id}.flac")),
+            path: fixtures.join(format!("gapless_{id}.flac")),
             album: Some("Gapless".into()),
         })
         .collect();

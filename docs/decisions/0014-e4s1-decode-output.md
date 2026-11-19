@@ -33,5 +33,16 @@ Linux. A PCM ramp checks exact frame positioning. Automated checks also
 verify resampler tail draining, converted frame counts, native sample
 conversion, underrun silence, and the debug allocation guard. All 17
 fixtures pass through CPAL on a process-local ALSA null device. CI is
-configured to repeat those Linux checks. Native playback on macOS and
-Windows remains unverified.
+configured to repeat those Linux checks.
+
+The three CPAL device tests passed on an Apple Silicon MacBook Pro
+running macOS 26.6.2 through its built-in 48 kHz output. That run covered
+all 17 playable fixtures, gapless playback with EQ, and the shared
+player. The metadata, decode, gapless and DSP fixture tests also passed
+on that Mac.
+
+The CPAL test executable cross-links for 64-bit Windows. For native
+execution on a machine with a default audio endpoint, set
+`MYTUNES_AUDIO_FIXTURE_DIR` to the folder containing the generated
+fixtures and run `device-tests.exe --ignored --test-threads=1`. A native
+Windows run and hosted CI remain pending.

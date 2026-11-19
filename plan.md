@@ -351,7 +351,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC1: Plays every fixture format through cpal on Linux, macOS, Windows. Resamples via rubato when needed 🧪 (headless: a null sink that counts frames).
   - AC2: Seek to arbitrary ms is accurate to ±20 ms 🧪.
   - AC3: No allocation or locking in the output callback (reviewed; `assert_no_alloc` in debug builds).
-  - _Status 2026-11-19: Streaming decode, seek, Rubato conversion, and CPAL output are implemented. All 17 fixtures pass local decode, seek, and CPAL checks using a Linux ALSA null device. Native macOS and Windows playback and hosted CI remain pending. See ADR-0014._
+  - _Status 2026-11-19: All 17 fixtures pass decode, seek, and CPAL checks on Linux and native macOS output. The Windows test executable cross-links. Native Windows playback and hosted CI remain pending. See ADR-0014._
 - [ ] **E4.S2 Gapless queue.** As a listener of live albums, I want zero gaps between tracks so that albums play as intended.
   - AC1: The gapless-pair fixture produces a continuous waveform: the sample at the boundary equals the expected sine value within 1e-4 🧪.
   - AC2: Encoder delay and padding are honoured for MP3 (LAME header) and AAC (iTunSMPB) 🧪.
