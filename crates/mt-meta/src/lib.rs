@@ -1,5 +1,6 @@
 //! Folder scanning and metadata extraction for local audio files.
 
+pub mod artwork;
 mod metadata;
 pub mod scan;
 

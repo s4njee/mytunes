@@ -339,6 +339,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC1: Embedded art (front cover preferred) is extracted. Otherwise `cover.jpg|folder.jpg|front.*` in the track's folder is used 🧪.
   - AC2: Artwork is deduped by blake3. 300 px and 600 px square JPEG thumbnails (q=85, centre-crop) are generated off the UI thread 🧪.
   - AC3: Tracks of one album share one `artwork_id` 🧪.
+  - _Status 2026-11-19: Embedded and folder artwork is integrated into library imports. Worker threads generate both JPEG sizes and SQLite deduplicates by source digest. Local workspace, fixture, and Clippy checks pass. Hosted CI is pending. See ADR-0012._
 - [ ] **E3.S4 Tag writing.** As a user, I want edits in Get Info to be saved into my files so that they persist outside MyTunes.
   - AC1: Write title/artist/album/album artist/genre/year/track/disc/compilation/rating/artwork with lofty, preserving unrelated frames 🧪.
   - AC2: Writes are atomic (write temp, then rename) and update `size/mtime` in the DB so the next rescan doesn't treat them as external changes. `file_rev` is **not** bumped 🧪.

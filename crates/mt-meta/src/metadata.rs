@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{self, BufReader, Read, Seek};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
+use std::sync::Arc;
 
 use lofty::config::{ParseOptions, ParsingMode};
 use lofty::error::FileParseError;
@@ -12,6 +13,8 @@ use lofty::mp4::{Mp4Codec, Mp4File};
 use lofty::mpeg::{Layer, MpegFile};
 use lofty::probe::Probe;
 use lofty::tag::{Accessor, ItemKey, Tag};
+
+use crate::artwork::{ArtworkCache, TrackArtwork};
 
 /// Audio formats recognized by the metadata reader.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -166,23 +169,34 @@ pub fn read_metadata(path: impl AsRef<Path>) -> Result<TrackMetadata, MetadataEr
 ///
 /// Returns the same errors as [`read_metadata`].
 pub fn read_metadata_from<R: Read + Seek>(
-    mut reader: R,
+    reader: R,
     filename: &Path,
 ) -> Result<TrackMetadata, MetadataError> {
+    read_track_from(reader, filename, None).map(|(metadata, _)| metadata)
+}
+
+pub(crate) fn read_track_from<R: Read + Seek>(
+    mut reader: R,
+    filename: &Path,
+    artwork: Option<&ArtworkCache<'_>>,
+) -> Result<(TrackMetadata, Option<Arc<TrackArtwork>>), MetadataError> {
     reader.rewind()?;
 
     // Lofty can unwind on corrupt headers. The parser owns the reader and
     // produces no library state until this call succeeds.
-    catch_unwind(AssertUnwindSafe(|| parse_metadata(reader, filename)))
-        .map_err(|_| MetadataError::ParserFailure)?
+    catch_unwind(AssertUnwindSafe(|| {
+        parse_metadata(reader, filename, artwork)
+    }))
+    .map_err(|_| MetadataError::ParserFailure)?
 }
 
 fn parse_metadata<R: Read + Seek>(
     reader: R,
     filename: &Path,
-) -> Result<TrackMetadata, MetadataError> {
+    artwork: Option<&ArtworkCache<'_>>,
+) -> Result<(TrackMetadata, Option<Arc<TrackArtwork>>), MetadataError> {
     let options = ParseOptions::new()
-        .read_cover_art(false)
+        .read_cover_art(artwork.is_some())
         .parsing_mode(ParsingMode::Strict);
     let probe = Probe::new(reader).options(options).guess_file_type()?;
     let file_type = probe
@@ -282,7 +296,8 @@ fn parse_metadata<R: Read + Seek>(
         bitrate_kbps: properties.audio_bitrate().filter(|rate| *rate > 0),
         channels,
     };
-    Ok(extract_tags(&file, filename, audio))
+    let cover = artwork.and_then(|cache| cache.embedded(&file));
+    Ok((extract_tags(&file, filename, audio), cover))
 }
 
 fn extract_tags(file: &TaggedFile, filename: &Path, audio: AudioProperties) -> TrackMetadata {

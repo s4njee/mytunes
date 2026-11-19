@@ -19,6 +19,8 @@ uuid = { version = "=1.29.3", features = ["v7"] }
 
 [dev-dependencies]
 gen-fixtures = { path = "../../tools/gen-fixtures" }
+image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png"] }
+lofty = "=0.25.5"
 tempfile = "3"
 
 [lints]

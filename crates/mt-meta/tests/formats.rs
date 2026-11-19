@@ -194,3 +194,40 @@ fn malformed_opus_granule_positions_return_a_typed_error() {
         );
     }
 }
+
+#[test]
+#[ignore = "run after cargo run -p gen-fixtures with ffmpeg installed"]
+fn reads_embedded_covers_from_mp3_mp4_and_flac() {
+    use mt_meta::scan::scan_tree;
+    use std::collections::{HashMap, HashSet};
+    use std::convert::Infallible;
+
+    let wanted = ["mp3_cbr320.mp3", "aac_256.m4a", "flac_16_44.flac"];
+    let mut covered = HashSet::new();
+    let errors = scan_tree(
+        &fixture_path(""),
+        &HashMap::new(),
+        &HashSet::new(),
+        |_| {},
+        |file| -> Result<(), Infallible> {
+            let Some(filename) = file.path.file_name().and_then(|name| name.to_str()) else {
+                return Ok(());
+            };
+            if wanted.contains(&filename) {
+                assert!(file.result.unwrap().is_some(), "{filename}");
+                let artwork = file.artwork.expect("embedded fixture cover");
+                assert_ne!(
+                    artwork.source,
+                    mt_meta::artwork::ArtworkSource::Folder,
+                    "{filename}"
+                );
+                assert!(artwork.thumbnails.is_some(), "{filename}");
+                covered.insert(filename.to_owned());
+            }
+            Ok(())
+        },
+    )
+    .unwrap();
+    assert!(errors.is_empty());
+    assert_eq!(covered.len(), wanted.len());
+}

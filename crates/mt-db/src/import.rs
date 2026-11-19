@@ -1,10 +1,14 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use mt_meta::scan::{FileStamp, ReadTrack, ScanFileError, ScanProgress, WalkError, scan_tree};
+use crate::artwork::{assign_album_artwork, source_priority};
+use mt_meta::artwork::{ArtworkSource, TrackArtwork};
+use mt_meta::scan::{
+    CachedTrack, FileStamp, ReadTrack, ScanFileError, ScanProgress, WalkError, scan_tree,
+};
 use rusqlite::{Connection, TransactionBehavior, named_params};
 
 /// Result of a committed library scan.
@@ -69,7 +73,9 @@ pub fn scan_library_folder(
     let mut previous = HashMap::new();
     {
         let mut select = transaction.prepare(
-            "SELECT file_path, size_bytes, file_mtime_ns, file_hash IS NOT NULL, missing FROM tracks",
+            "SELECT file_path, size_bytes, file_mtime_ns, file_hash IS NOT NULL, missing,
+                    coalesce(artwork_source_kind < 2 AND artwork_source_id IS NOT NULL, false)
+             FROM tracks",
         )?;
         let mut rows = select.query([])?;
         while let Some(row) = rows.next()? {
@@ -84,19 +90,38 @@ pub fn scan_library_folder(
             if let (Some(size_bytes), Some(mtime_ns), true) = (size_bytes, mtime_ns, has_hash) {
                 previous.insert(
                     path,
-                    FileStamp {
-                        size_bytes,
-                        mtime_ns,
+                    CachedTrack {
+                        stamp: FileStamp {
+                            size_bytes,
+                            mtime_ns,
+                        },
+                        has_embedded_artwork: row.get(5)?,
                     },
                 );
             }
         }
     }
 
+    let known_artwork = {
+        let mut statement = transaction.prepare("SELECT id FROM artwork")?;
+        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+        rows.collect::<rusqlite::Result<HashSet<_>>>()?
+    };
+    let mut stored = HashSet::new();
+    let mut artwork_dirty = false;
     let mut report = FolderImport::default();
 
     {
         let mut upsert = transaction.prepare(UPSERT_TRACK)?;
+        let mut insert_artwork = transaction.prepare(
+            "INSERT INTO artwork (id, thumb_300, thumb_600) VALUES (?1, ?2, ?3)
+             ON CONFLICT(id) DO NOTHING",
+        )?;
+        let mut refresh_folder_art = transaction.prepare(
+            "UPDATE tracks SET artwork_source_id = ?1, artwork_source_kind = ?2
+              WHERE file_path = ?3 AND coalesce(artwork_source_kind, ?4) = ?4
+                AND artwork_source_id IS NOT ?1",
+        )?;
         let mut set_missing = transaction
             .prepare("UPDATE tracks SET missing = ?1 WHERE file_path = ?2 AND missing <> ?1")?;
         let added_at_ms = SystemTime::UNIX_EPOCH
@@ -106,18 +131,36 @@ pub fn scan_library_folder(
         report.walk_errors = scan_tree(
             &root,
             &previous,
+            &known_artwork,
             on_progress,
             |file| -> rusqlite::Result<()> {
                 let was_missing = existing.remove(&file.path) == Some(true);
+                let artwork = file.artwork.as_deref();
+                if let Some(cover) = artwork
+                    && let Some(jpeg) = cover.thumbnails.as_ref()
+                    && stored.insert(cover.id.clone())
+                {
+                    insert_artwork.execute((&cover.id, &jpeg.small, &jpeg.large))?;
+                }
                 match (file.result, file.path.to_str()) {
                     (Ok(Some(track)), Some(path)) => {
-                        save_track(&mut upsert, path, track, added_at_ms)?;
+                        save_track(&mut upsert, path, track, added_at_ms, artwork)?;
+                        artwork_dirty = true;
                         report.read += 1;
                     }
                     (Ok(None), Some(path)) => {
                         if was_missing {
                             set_missing.execute((false, path))?;
+                            artwork_dirty = true;
                         }
+                        let folder_priority = source_priority(ArtworkSource::Folder);
+                        let count = refresh_folder_art.execute((
+                            artwork.map(|cover| cover.id.as_str()),
+                            artwork.map(|_| folder_priority),
+                            path,
+                            folder_priority,
+                        ))?;
+                        artwork_dirty |= count != 0;
                         report.unchanged += 1;
                     }
                     (Err(error), _) => report.file_errors.push((file.path, error)),
@@ -148,6 +191,11 @@ pub fn scan_library_folder(
         }
     }
 
+    if (artwork_dirty || report.marked_missing != 0)
+        && (!known_artwork.is_empty() || !stored.is_empty())
+    {
+        assign_album_artwork(&transaction)?;
+    }
     transaction.commit()?;
     Ok(report)
 }
@@ -183,6 +231,7 @@ fn save_track(
     path: &str,
     track: ReadTrack,
     added_at_ms: Option<i64>,
+    artwork: Option<&TrackArtwork>,
 ) -> rusqlite::Result<()> {
     let tags = track.metadata;
     let audio = tags.audio;
@@ -220,6 +269,8 @@ fn save_track(
         ":modified": track.stamp.mtime_ns.div_euclid(1_000_000),
         ":track_gain": tags.replay_gain.track_gain_db,
         ":album_gain": tags.replay_gain.album_gain_db,
+        ":artwork_source_id": artwork.map(|cover| cover.id.as_str()),
+        ":artwork_source_kind": artwork.map(|cover| source_priority(cover.source)),
     })?;
     Ok(())
 }
@@ -230,13 +281,14 @@ const UPSERT_TRACK: &str = "
         bitrate, channels, duration_ms, title, artist, album_artist, album, composer, genre,
         year, track_no, track_total, disc_no, disc_total, compilation,
         sort_title, sort_artist, sort_album, sort_album_artist,
-        date_added, date_modified, replaygain_track_db, replaygain_album_db
+        date_added, date_modified, replaygain_track_db, replaygain_album_db,
+        artwork_source_id, artwork_source_kind
     ) VALUES (
         :id, :path, :hash, :size, :mtime, :codec, :sample_rate, :bit_depth,
         :bitrate, :channels, :duration_ms, :title, :artist, :album_artist, :album, :composer, :genre,
         :year, :track_no, :track_total, :disc_no, :disc_total, :compilation,
         :sort_title, :sort_artist, :sort_album, :sort_album_artist,
-        :added, :modified, :track_gain, :album_gain
+        :added, :modified, :track_gain, :album_gain, :artwork_source_id, :artwork_source_kind
     ) ON CONFLICT(file_path) DO UPDATE SET
         file_rev = tracks.file_rev + (tracks.file_hash IS NOT NULL AND tracks.file_hash <> excluded.file_hash),
         file_hash = excluded.file_hash, size_bytes = excluded.size_bytes,
@@ -251,4 +303,6 @@ const UPSERT_TRACK: &str = "
         sort_artist = excluded.sort_artist, sort_album = excluded.sort_album,
         sort_album_artist = excluded.sort_album_artist, date_modified = excluded.date_modified,
         replaygain_track_db = excluded.replaygain_track_db,
-        replaygain_album_db = excluded.replaygain_album_db, missing = 0";
+        replaygain_album_db = excluded.replaygain_album_db,
+        artwork_source_id = excluded.artwork_source_id, artwork_source_kind = excluded.artwork_source_kind,
+        missing = 0";

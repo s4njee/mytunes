@@ -12,7 +12,7 @@ pub(super) const ARTIST_SORT: &str = "coalesce(nullif(tracks.sort_artist, ''), m
 pub(super) const ALBUM_SORT: &str =
     "coalesce(nullif(tracks.sort_album, ''), tracks.album) COLLATE mytunes_unicode_v1";
 const ALBUM_ARTIST_SORT: &str = "coalesce(nullif(tracks.sort_album_artist, ''), mytunes_artist_v1(tracks.album_artist)) COLLATE mytunes_unicode_v1";
-pub(super) const ALBUM_DISPLAY_ARTIST: &str = "(CASE WHEN tracks.compilation THEN 'Various Artists'
+pub(crate) const ALBUM_DISPLAY_ARTIST: &str = "(CASE WHEN tracks.compilation THEN 'Various Artists'
     ELSE coalesce(nullif(tracks.album_artist, ''), nullif(tracks.artist, '')) END)";
 pub(super) const ALBUM_GROUP_SORT: &str = "(CASE WHEN tracks.compilation THEN 'Various Artists'
     ELSE coalesce(nullif(tracks.sort_album_artist, ''), mytunes_artist_v1(nullif(tracks.album_artist, '')),

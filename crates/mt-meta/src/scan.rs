@@ -1,10 +1,10 @@
 //! Folder traversal, parallel metadata extraction, and scan progress.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File, Metadata};
 use std::io::{self, BufReader, Seek};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, mpsc};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
@@ -13,7 +13,9 @@ use rayon::prelude::*;
 pub use walkdir::Error as WalkError;
 use walkdir::WalkDir;
 
-use crate::{MetadataError, TrackMetadata, read_metadata_from};
+use crate::artwork::{ArtworkCache, TrackArtwork};
+use crate::metadata::read_track_from;
+use crate::{MetadataError, TrackMetadata};
 
 const SCAN_PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 
@@ -50,6 +52,15 @@ impl FileStamp {
             mtime_ns: i64::try_from(nanos.map_err(out_of_range)?).map_err(out_of_range)?,
         })
     }
+}
+
+/// Previously scanned attributes used to skip reads.
+#[derive(Debug, Clone, Copy)]
+pub struct CachedTrack {
+    /// Attributes of the audio file.
+    pub stamp: FileStamp,
+    /// Whether the file already supplied usable embedded artwork.
+    pub has_embedded_artwork: bool,
 }
 
 /// Current progress for a scan.
@@ -98,6 +109,8 @@ pub struct ScannedFile {
     pub path: PathBuf,
     /// Fresh data, an unchanged file, or a typed error.
     pub result: Result<Option<ReadTrack>, ScanFileError>,
+    /// Cover found for this file. An unchanged audio file only checks folder artwork.
+    pub artwork: Option<Arc<TrackArtwork>>,
 }
 
 /// Scan supported regular files under a directory. Nested symbolic links are skipped.
@@ -113,7 +126,8 @@ pub struct ScannedFile {
 /// success, the result lists traversal errors for paths that could not be inspected.
 pub fn scan_tree<E>(
     root: &Path,
-    previous: &HashMap<PathBuf, FileStamp>,
+    previous: &HashMap<PathBuf, CachedTrack>,
+    known_artwork: &HashSet<String>,
     mut on_progress: impl FnMut(ScanProgress),
     mut on_file: impl FnMut(ScannedFile) -> Result<(), E>,
 ) -> Result<Vec<WalkError>, E> {
@@ -145,9 +159,31 @@ pub fn scan_tree<E>(
                     Err(error) => walk_errors.push(error),
                 }
             }
+            let cache = ArtworkCache::new(known_artwork);
             let _ = paths.into_par_iter().try_for_each(|path| {
-                let result = inspect_file(&path, previous.get(&path).copied());
-                send.send(ScannedFile { path, result }).map_err(|_| ())
+                let cached = previous.get(&path);
+                let (result, artwork) =
+                    match inspect_file(&path, cached.map(|track| track.stamp), &cache) {
+                        Ok((track, artwork)) => {
+                            let unchanged_embedded = track.is_none()
+                                && cached.is_some_and(|track| track.has_embedded_artwork);
+                            let artwork = artwork.or_else(|| {
+                                if unchanged_embedded {
+                                    None
+                                } else {
+                                    cache.folder(&path)
+                                }
+                            });
+                            (Ok(track), artwork)
+                        }
+                        Err(error) => (Err(error), None),
+                    };
+                send.send(ScannedFile {
+                    path,
+                    result,
+                    artwork,
+                })
+                .map_err(|_| ())
             });
             walk_errors
         });
@@ -205,20 +241,26 @@ fn supported(path: &Path) -> bool {
 fn inspect_file(
     path: &Path,
     previous: Option<FileStamp>,
-) -> Result<Option<ReadTrack>, ScanFileError> {
+    cache: &ArtworkCache<'_>,
+) -> Result<(Option<ReadTrack>, Option<Arc<TrackArtwork>>), ScanFileError> {
     if path.to_str().is_none() {
         return Err(ScanFileError::NonUtf8Path);
     }
     let stamp = FileStamp::from_metadata(&fs::symlink_metadata(path)?)?;
     if previous == Some(stamp) {
-        return Ok(None);
+        return Ok((None, None));
     }
 
     let mut reader = BufReader::new(File::open(path)?);
     if FileStamp::from_metadata(&reader.get_ref().metadata()?)? != stamp {
         return Err(ScanFileError::ChangedDuringRead);
     }
-    let metadata = read_metadata_from(&mut reader, path)?;
+    let (metadata, artwork) = match read_track_from(&mut reader, path, Some(cache)) {
+        Err(MetadataError::InvalidAudio(_) | MetadataError::ParserFailure) => {
+            read_track_from(&mut reader, path, None)?
+        }
+        result => result?,
+    };
     reader.rewind()?;
     let mut hash = blake3::Hasher::new();
     hash.update_reader(&mut reader)?;
@@ -227,9 +269,12 @@ fn inspect_file(
     {
         return Err(ScanFileError::ChangedDuringRead);
     }
-    Ok(Some(ReadTrack {
-        metadata,
-        stamp,
-        hash: *hash.finalize().as_bytes(),
-    }))
+    Ok((
+        Some(ReadTrack {
+            metadata,
+            stamp,
+            hash: *hash.finalize().as_bytes(),
+        }),
+        artwork,
+    ))
 }

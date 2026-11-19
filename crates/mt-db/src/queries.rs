@@ -5,6 +5,7 @@ mod tracks;
 use mt_types::{PlaylistId, TrackId};
 use rusqlite::{Connection, Row};
 
+pub(crate) use tracks::ALBUM_DISPLAY_ARTIST;
 pub use tracks::{SortDirection, TrackColumn, TrackRow, TrackSearch, TrackSort};
 
 /// An error reading a library query.
@@ -50,7 +51,7 @@ impl<'db> LibraryQueries<'db> {
              ORDER BY min(album_sort COLLATE mytunes_unicode_v1),
                       min(group_artist_sort COLLATE mytunes_unicode_v1), year,
                       album, group_artist, compilation",
-            display_artist = tracks::ALBUM_DISPLAY_ARTIST,
+            display_artist = ALBUM_DISPLAY_ARTIST,
             album_sort = tracks::ALBUM_SORT,
             artist_sort = tracks::ALBUM_GROUP_SORT,
         );
