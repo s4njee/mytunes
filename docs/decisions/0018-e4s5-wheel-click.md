@@ -43,7 +43,9 @@ and Xcode 27.2. A SwiftUI probe linked the current `Player` into an
 arm64 iPhone app. On the iOS simulator the same probe opened a
 `playback` session, loaded a synthetic FLAC track, and called
 `Player::play_sfx(Click)` successfully with music paused and playing.
-The physical build awaits code signing.
+Xcode signed the probe and installed it on the paired iPhone 13 Pro.
+iOS returned a security denial when asked to launch the installed app.
+The device's launch authorization remains unresolved.
 
 On the physical iPhone, exercise the click with Silent mode off and on,
 both while music is paused and while it is playing. Record whether the

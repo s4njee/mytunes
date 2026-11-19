@@ -372,7 +372,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
 - [ ] **E4.S5 UI sound-effect channel.** As a wheel user, I want click sounds with no latency so that the wheel feels mechanical.
   - AC1: `play_sfx(Click)` mixes a ≤ 15 ms synthesized click into the output within one callback period (< 10 ms at 48 kHz/256 frames).
   - AC2: Works when music is paused (the stream stays open while the app is in the foreground). Respects the system silent switch on iOS (ambient behaviour for sfx).
-  - _Status 2026-11-19: The CPAL click starts in the next 256-frame callback and plays over music or silence while paused. The audio crate cross-checks for Android and builds with Xcode for iPhone. The iOS simulator accepted click requests with music paused and playing. The physical iPhone probe awaits signing. Timing, Silent mode, and hosted CI remain pending. See ADR-0018._
+  - _Status 2026-11-19: The CPAL click starts in the next 256-frame callback and plays over music or silence while paused. The audio crate cross-checks for Android and builds with Xcode for iPhone. The iOS simulator accepted click requests with music paused and playing. The Xcode-signed probe installed on the physical iPhone, where iOS denied its launch. Timing, Silent mode, and hosted CI remain pending. See ADR-0018._
 
 ---
 
