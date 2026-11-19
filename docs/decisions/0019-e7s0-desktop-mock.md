@@ -1,6 +1,6 @@
 # 0019 — E7.S0 Desktop visual mock
 
-- **Status** Pending owner review (2026-11-19)
+- **Status** Both themes approved by the owner (2026-11-19)
 - **Story** E7.S0
 
 ## Design
@@ -41,7 +41,8 @@ The [light screenshot](../../design/desktop/light.png) and
 [dark screenshot](../../design/desktop/dark.png) were captured at
 1440 × 900 in WebKitGTK. Both themes were also checked in WKWebView on
 macOS. Preview checks covered Browse, transport, artwork visibility,
-and the theme control. Owner approval is pending.
+and the theme control. The owner approved both screenshots on
+2026-11-19 in the desktop mock review.
 
 ## Sample artwork
 
