@@ -315,8 +315,10 @@ export function DesktopMock() {
       onToggleArtwork={() => setArtwork((visible) => !visible)}
       onToggleBrowser={() => setBrowser((visible) => !visible)}
       onTheme={(mode) => {
-        setTheme(mode);
-        document.documentElement.dataset.theme = mode;
+        if (mode !== "system") {
+          setTheme(mode);
+          document.documentElement.dataset.theme = mode;
+        }
       }}
     />
   );

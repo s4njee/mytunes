@@ -69,7 +69,7 @@ await new Promise((ready, reject) => {
 });
 const remote = `http://127.0.0.1:${server.address().port}/remote-test`;
 const driver = spawn("tauri-driver", ["--port", String(PORT)], {
-  env: { ...process.env, XDG_DATA_HOME: appData, APPDATA: appData },
+  env: { ...process.env, XDG_DATA_HOME: appData, XDG_CONFIG_HOME: appData, APPDATA: appData },
   stdio: ["ignore", "inherit", "inherit"],
 });
 let session;
@@ -98,15 +98,16 @@ try {
   };
 
   const title = await wd("GET", `${s}/title`);
-  const button = await find("button");
-  await wd("POST", `${s}/element/${button}/click`, {});
-  const reply = await wd("GET", `${s}/element/${await find("[data-testid=reply]")}/text`);
+  await find(".track-table");
+  await find(".library-summary");
 
   const ipc = await wd("POST", `${s}/execute/async`, {
     script: `
       const done = arguments[arguments.length - 1];
       (async () => {
         const internals = window.__TAURI_INTERNALS__;
+        const pong = await internals.invoke("ping");
+        const settings = await internals.invoke("window_settings_get");
         const view = await internals.invoke("view_open", { spec: {} });
         const page = await internals.invoke("view_rows", { viewId: view.view_id, offset: 0, limit: 200 });
         let oversized;
@@ -121,7 +122,7 @@ try {
           player = "__CHANNEL__:" + callback;
         });
         await internals.invoke("subscribe_player", { channel: player });
-        return { view, page, oversized, initialPlayer: await received };
+        return { pong, settings, view, page, oversized, initialPlayer: await received };
       })().then(done, error => done({ error: String(error) }));
     `,
     args: [],
@@ -132,10 +133,51 @@ try {
     !Array.isArray(ipc.page) ||
     ipc.page.length > 200 ||
     ipc.oversized?.kind !== "page_limit" ||
-    ipc.initialPlayer?.state !== "empty"
+    ipc.initialPlayer?.state !== "empty" ||
+    ipc.pong?.message !== "pong" ||
+    !ipc.settings?.sort
   ) {
     throw new Error(`Unexpected desktop IPC response: ${JSON.stringify(ipc)}`);
   }
+
+  const saved = await wd("POST", `${s}/execute/async`, {
+    script: `
+      const [settings, done] = arguments;
+      window.__TAURI_INTERNALS__.invoke("window_settings_save", {
+        settings: {
+          ...settings,
+          theme: "dark",
+          sidebar_width: 254,
+          browser_visible: false,
+          columns: [{ column: "genre", width: null, visible: false }, { column: "duration", width: 90, visible: true }],
+          sort: { column: "album", direction: "descending" },
+        },
+      }).then(done, error => done({ error: String(error) }));
+    `,
+    args: [ipc.settings],
+  });
+  if (saved.theme !== "dark") throw new Error(`Save layout failed: ${JSON.stringify(saved)}`);
+  await wd("POST", `${s}/refresh`, {});
+  const restored = await wd("POST", `${s}/execute/async`, {
+    script: `
+      const done = arguments[arguments.length - 1];
+      let remaining = 40;
+      const check = () => {
+        if (document.documentElement.dataset.theme === "dark") {
+          const sidebar = document.querySelector(".library-sidebar")?.getBoundingClientRect();
+          done(Boolean(sidebar?.width === 254 &&
+            !document.querySelector(".column-browser") &&
+            !Array.from(document.querySelectorAll(".track-table th")).some(cell => cell.textContent.trim() === "Genre") &&
+            document.querySelector(".track-time-column")?.style.width === "90px" &&
+            document.querySelector('th[aria-sort="descending"]')?.textContent.trim() === "Album"));
+        } else if (remaining-- > 0) setTimeout(check, 50);
+        else done(false);
+      };
+      check();
+    `,
+    args: [],
+  });
+  if (!restored) throw new Error("The window did not restore its saved layout");
 
   const violation = await wd("POST", `${s}/execute/async`, {
     script: `
@@ -162,9 +204,12 @@ try {
     throw new Error("The webview requested remote content");
 
   console.log(`window title: ${title}`);
-  console.log(`reply: ${reply}`);
-  console.log("Typed IPC, player subscription and remote content protection passed");
-  ok = title === "MyTunes" && /^pong \(core \d+\.\d+\.\d+\)$/.test(reply);
+  const message = await wd("GET", `${s}/element/${await find(".library-summary")}/text`);
+  console.log(`library status: ${message}`);
+  console.log(
+    "Typed IPC, player subscription, restored layout and remote content protection passed",
+  );
+  ok = title === "MyTunes" && /songs?$/.test(message);
 } catch (e) {
   console.error(e);
 } finally {

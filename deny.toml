@@ -5,11 +5,14 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
-# "Unmaintained" notices for compile-time proc-macro crates we don't depend on directly.
+# Maintenance notices for transitive dependencies.
 # Vulnerability advisories are never ignored. Revisit when upstream drops them.
 ignore = [
   { id = "RUSTSEC-2024-0436", reason = "paste (unmaintained): proc-macro used by specta" },
   { id = "RUSTSEC-2024-0370", reason = "proc-macro-error (unmaintained): via gtk-rs glib-macros, used by Tauri on Linux" },
+  { id = "RUSTSEC-2026-0370", reason = "zvariant moved into zbus 6; Tauri 2 single-instance currently uses zbus 5 on Linux" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names moved into zbus 6; Tauri 2 single-instance currently uses zbus 5 on Linux" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive moved into zbus 6; Tauri 2 single-instance currently uses zbus 5 on Linux" },
 ]
 
 [licenses]

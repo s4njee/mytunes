@@ -12,6 +12,10 @@ export const commands = {
 	viewOpen: (spec: ViewSpec_Deserialize, options?: InvokeOptions) => typedError<OpenedView, AppError>(__TAURI_INVOKE("view_open", { spec }, options)),
 	/**  Fetch a page of at most 200 tracks for a previously opened view. */
 	viewRows: (viewId: string, offset: number, limit: number, options?: InvokeOptions) => typedError<TrackRow_Serialize[], AppError>(__TAURI_INVOKE("view_rows", { viewId, offset, limit }, options)),
+	/**  Read the window layout and theme from the library settings. */
+	windowSettingsGet: (options?: InvokeOptions) => typedError<WindowSettings_Serialize, AppError>(__TAURI_INVOKE("window_settings_get", undefined, options)),
+	/**  Save the window layout and theme to the library. */
+	windowSettingsSave: (settings: WindowSettings_Deserialize, options?: InvokeOptions) => typedError<WindowSettings_Serialize, AppError>(__TAURI_INVOKE("window_settings_save", { settings }, options)),
 	/**  Subscribe to the current transport snapshot and subsequent player events. */
 	subscribePlayer: (channel: Channel<PlayerEvent_Deserialize>, options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("subscribe_player", { channel }, options)),
 	/**  Subscribe to library scan progress. */
@@ -39,6 +43,29 @@ maximum: number } |
 { kind: "library" } |
 /**  A desktop service could not handle the request. */
 { kind: "unavailable" };
+
+/**  A user's override for a library column. */
+export type ColumnPreference = ColumnPreference_Serialize | ColumnPreference_Deserialize;
+
+/**  A user's override for a library column. */
+export type ColumnPreference_Deserialize = {
+	/**  Column whose layout is overridden. */
+	column: TrackColumn,
+	/**  Explicit width in logical pixels, when the user resized it. */
+	width?: number | null,
+	/**  Whether this column is shown. */
+	visible: boolean,
+};
+
+/**  A user's override for a library column. */
+export type ColumnPreference_Serialize = {
+	/**  Column whose layout is overridden. */
+	column: TrackColumn,
+	/**  Explicit width in logical pixels, when the user resized it. */
+	width: number | null,
+	/**  Whether this column is shown. */
+	visible: boolean,
+};
 
 /**  Notifies the UI when a paired device becomes reachable. */
 export type DeviceOnline = {
@@ -328,6 +355,54 @@ export type ViewSpec_Serialize = {
 	/**  Selected album in the column browser, if any. */
 	album: string | null,
 };
+
+/**  Saved presentation of the desktop library. */
+export type WindowSettings = WindowSettings_Serialize | WindowSettings_Deserialize;
+
+/**  Saved presentation of the desktop library. */
+export type WindowSettings_Deserialize = {
+	/**  Preferred color scheme. */
+	theme?: WindowTheme,
+	/**  Explicit sidebar width in logical pixels. */
+	sidebar_width?: number | null,
+	/**  Explicit height of the column browser in logical pixels. */
+	browser_height?: number | null,
+	/**  Whether to show the column browser. */
+	browser_visible?: boolean,
+	/**  Whether to show the sidebar artwork. */
+	artwork_visible?: boolean,
+	/**  Overrides to the default column layout. */
+	columns?: ColumnPreference_Deserialize[],
+	/**  Sort to use when opening the library. */
+	sort?: TrackSort,
+};
+
+/**  Saved presentation of the desktop library. */
+export type WindowSettings_Serialize = {
+	/**  Preferred color scheme. */
+	theme: WindowTheme,
+	/**  Explicit sidebar width in logical pixels. */
+	sidebar_width: number | null,
+	/**  Explicit height of the column browser in logical pixels. */
+	browser_height: number | null,
+	/**  Whether to show the column browser. */
+	browser_visible: boolean,
+	/**  Whether to show the sidebar artwork. */
+	artwork_visible: boolean,
+	/**  Overrides to the default column layout. */
+	columns: ColumnPreference_Serialize[],
+	/**  Sort to use when opening the library. */
+	sort: TrackSort,
+};
+
+/**  Desktop theme preference. */
+export type WindowTheme =
+/**  Use the system's current appearance. */
+"system" |
+/**  Always use the light palette. */
+"light" |
+/**  Always use the dark palette. */
+"dark";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

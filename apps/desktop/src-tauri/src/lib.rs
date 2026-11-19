@@ -12,11 +12,13 @@ use events::{DesktopChannels, DeviceOnline, LibraryChanged, SyncProgress};
 use mt_app::{
     TrackRow,
     library::{AppError, DesktopLibrary, OpenedView, ViewSpec},
+    window::WindowSettings,
 };
 use mt_audio::PlayerEvent;
 use mt_meta::scan::ScanProgress;
 use mt_types::Pong;
 use tauri::{Manager, State, Url, WebviewWindowBuilder, async_runtime, ipc::Channel};
+use tauri_plugin_window_state::{StateFlags, WindowExt};
 use tauri_specta::{Builder, ErrorHandlingMode, collect_commands, collect_events};
 
 /// Where the generated TypeScript bindings live, relative to this crate.
@@ -53,6 +55,31 @@ async fn view_rows(
 ) -> Result<Vec<TrackRow>, AppError> {
     let library = library.inner().clone();
     async_runtime::spawn_blocking(move || library.view_rows(&view_id, offset, limit))
+        .await
+        .map_err(|_| AppError::Unavailable)?
+}
+
+/// Read the window layout and theme from the library settings.
+#[tauri::command]
+#[specta::specta]
+async fn window_settings_get(
+    library: State<'_, Arc<DesktopLibrary>>,
+) -> Result<WindowSettings, AppError> {
+    let library = library.inner().clone();
+    async_runtime::spawn_blocking(move || library.window_settings())
+        .await
+        .map_err(|_| AppError::Unavailable)?
+}
+
+/// Save the window layout and theme to the library.
+#[tauri::command]
+#[specta::specta]
+async fn window_settings_save(
+    library: State<'_, Arc<DesktopLibrary>>,
+    settings: WindowSettings,
+) -> Result<WindowSettings, AppError> {
+    let library = library.inner().clone();
+    async_runtime::spawn_blocking(move || library.save_window_settings(settings))
         .await
         .map_err(|_| AppError::Unavailable)?
 }
@@ -95,6 +122,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             ping,
             view_open,
             view_rows,
+            window_settings_get,
+            window_settings_save,
             subscribe_player,
             subscribe_scan,
             subscribe_sync
@@ -137,6 +166,7 @@ fn local_navigation(url: &Url, dev: Option<&Url>) -> bool {
 /// Starts the desktop app.
 pub fn run() {
     let builder = specta_builder();
+    let window_state = StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED;
 
     #[cfg(debug_assertions)]
     if let Err(e) = export_bindings(&builder) {
@@ -144,6 +174,18 @@ pub fn run() {
     }
 
     let result = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(window_state)
+                .skip_initial_state("main")
+                .build(),
+        )
         .invoke_handler(builder.invoke_handler())
         .register_asynchronous_uri_scheme_protocol("mtart", |context, request, responder| {
             let library = context
@@ -172,9 +214,13 @@ pub fn run() {
             } else {
                 None
             };
-            WebviewWindowBuilder::from_config(app, window)?
+            let main = WebviewWindowBuilder::from_config(app, window)?
                 .on_navigation(move |url| local_navigation(url, dev.as_ref()))
                 .build()?;
+            if let Err(error) = main.restore_state(window_state) {
+                eprintln!("could not restore the desktop window: {error}");
+            }
+            main.show()?;
             Ok(())
         })
         .run(tauri::generate_context!());

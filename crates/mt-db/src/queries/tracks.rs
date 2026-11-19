@@ -21,7 +21,7 @@ pub(super) const ALBUM_GROUP_SORT: &str = "(CASE WHEN tracks.compilation THEN 'V
                   nullif(tracks.sort_artist, ''), mytunes_artist_v1(tracks.artist)) END) COLLATE mytunes_unicode_v1";
 
 /// A column users can sort the track list by.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Deserialize, Serialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum TrackColumn {
     /// Whether the track is selected for sync.

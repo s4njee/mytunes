@@ -4,6 +4,7 @@
 //! the functions in this crate, so they can be unit-tested without a webview.
 
 pub mod library;
+pub mod window;
 
 pub use mt_db::ArtworkSize;
 pub use mt_db::queries::TrackRow;

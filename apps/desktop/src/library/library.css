@@ -296,11 +296,12 @@
 
 .library-body {
   display: grid;
-  grid-template-columns: var(--mt-desktop-size-sidebar) minmax(0, 1fr);
+  grid-template-columns: var(--window-sidebar, var(--mt-desktop-size-sidebar)) minmax(0, 1fr);
   min-block-size: 0;
 }
 
 .library-sidebar {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-block-size: 0;
@@ -438,9 +439,10 @@
 }
 
 .column-browser {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  block-size: var(--mt-desktop-size-browser);
+  block-size: var(--window-browser, var(--mt-desktop-size-browser));
   flex: none;
   border-bottom: var(--rule);
   background: var(--mt-desktop-browser);
@@ -706,4 +708,70 @@
   .track-table :is(th, td) {
     padding-inline: var(--mt-desktop-space-small);
   }
+}
+
+button.column-name {
+  inline-size: 100%;
+  block-size: calc(var(--mt-desktop-size-column-header) - 1px);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: start;
+}
+
+.track-table .empty-library {
+  padding-block: var(--mt-desktop-space-section);
+  color: var(--mt-desktop-secondary);
+  text-align: center;
+  border: 0;
+}
+
+.resize-handle {
+  position: absolute;
+  z-index: 2;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  touch-action: none;
+}
+
+.resize-handle:hover,
+.resize-handle:focus-visible {
+  background: var(--mt-desktop-soft-accent);
+}
+
+.library-window .resize-x {
+  inset: 0 0 0 auto;
+  inline-size: var(--mt-desktop-space-small);
+  cursor: col-resize;
+}
+
+.library-window .resize-y {
+  inset: auto 0 0;
+  block-size: var(--mt-desktop-space-small);
+  cursor: row-resize;
+}
+
+.track-table .track-numeric .column-name {
+  justify-content: flex-end;
+}
+
+.column-options {
+  display: grid;
+  gap: var(--mt-desktop-space-tight);
+  margin: 0;
+  padding: var(--mt-desktop-space-small);
+  border: var(--rule);
+  border-radius: var(--mt-desktop-radius-control);
+}
+
+.column-options label {
+  display: flex;
+  align-items: center;
+  gap: var(--mt-desktop-space-tight);
+  white-space: nowrap;
+}
+
+.column-options input {
+  accent-color: var(--mt-accent);
 }

@@ -11,6 +11,8 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::window::{self, WindowSettings};
+
 /// Maximum track rows in one response.
 pub const PAGE_SIZE: u32 = 200;
 const MAX_VIEWS: usize = 8;
@@ -191,6 +193,25 @@ impl DesktopLibrary {
         state.revision = state.revision.checked_add(1).ok_or(AppError::Unavailable)?;
         state.views.clear();
         Ok(state.revision)
+    }
+
+    /// Read the saved desktop layout and appearance.
+    ///
+    /// # Errors
+    /// Returns an error when the library cannot read its settings.
+    pub fn window_settings(&self) -> Result<WindowSettings, AppError> {
+        window::load(&self.state()?.db)
+    }
+
+    /// Persist the desktop layout and return the stored settings.
+    ///
+    /// # Errors
+    /// Returns an error when the library cannot save its settings.
+    pub fn save_window_settings(
+        &self,
+        settings: WindowSettings,
+    ) -> Result<WindowSettings, AppError> {
+        window::save(&self.state()?.db, settings)
     }
 
     /// Read an artwork JPEG by content digest and size.

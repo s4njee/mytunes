@@ -414,6 +414,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC2: Window size and position persist (Tauri `window-state` plugin). Split positions, visible columns and widths, and sort persist via backend settings 🧪.
   - AC3: Theme follows the system light/dark preference (`prefers-color-scheme`), with an override in Preferences that sets `data-theme`.
   - AC4: `single-instance` plugin: launching a second copy focuses the first.
+  - _Status 2026-11-19: The approved layout is the native app's main window. Layout and theme settings restore on reload. Linux native tests verify window position and size on reopen and focus on a second launch. Both themes render in WKWebView with fixture IPC. Hosted CI is pending. See ADR-0021._
 - [ ] **E7.S3 Import.** As a user, I want to add music by menu, drag and drop, or watched folder so that getting music in is effortless.
   - AC1: File ▸ Add Folder to Library… (Tauri `dialog` plugin) and drag-and-drop of files or folders onto the window (Tauri drag-drop event) both start a scan with a progress indicator in the LCD panel ("Importing 312 of 1,204").
   - AC2: Preferences ▸ Library lets me choose **"Copy files to MyTunes Media folder when adding"** (default off) and add or remove watched folders (notify-based in Rust, debounced 2 s) 🧪.
