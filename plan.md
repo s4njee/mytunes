@@ -321,6 +321,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
 - [ ] **E2.S3 Device schema.** As the phone, I want a slim schema so that the phone DB stays small and fast.
   - AC1: The device schema from §3.2 is created by its own migration chain 🧪.
   - AC2: The `events` table is append-only and has an `acked` flag. `state` is a key-value table for resume and settings 🧪.
+  - _Status 2026-11-19: Device V1, event acknowledgments and JSON state storage implemented. Tests cover independent schema identity, relative media paths, album grouping, immutable event history, and persistence across reopen. Local verification is complete. CI is pending. See ADR-0009._
 
 #### E3 Metadata & scanning (`mt-meta`)
 - [ ] **E3.S1 Tag reading.** As a user, I want correct metadata from all my common formats so that my library looks right.
