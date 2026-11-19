@@ -44,11 +44,8 @@ arm64 iPhone app. On the iOS simulator the same probe opened a
 `playback` session, loaded a synthetic FLAC track, and called
 `Player::play_sfx(Click)` successfully with music paused and playing.
 Xcode signed the probe and installed it on the paired iPhone 13 Pro.
-iOS returned a security denial when asked to launch the installed app.
-The device's launch authorization remains unresolved.
-
-On the physical iPhone, exercise the click with Silent mode off and on,
-both while music is paused and while it is playing. Record whether the
-click is audible, whether it vibrates, and whether changing Silent mode
-interrupts the music. Measure click onset with an audio capture that
-records both the trigger and the device speaker.
+CoreDevice confirmed the app process was running. With the phone's
+speaker in use, the owner tested clicks with music paused and playing.
+Clicks were audible with Silent mode off and muted with it on. Music
+continued when switching to Silent mode. Vibration and acoustic onset
+were not measured on the phone.
