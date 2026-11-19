@@ -1,3 +1,5 @@
-//! SQLite schemas, migrations and typed queries for the desktop library and device databases.
-//!
-//! See plan.md §3 for this crate's role. Implemented from milestone M1 onwards.
+//! SQLite schemas, migrations and typed queries for MyTunes libraries.
+
+mod desktop;
+
+pub use desktop::{DESKTOP_SCHEMA_VERSION, DbError, open_desktop};

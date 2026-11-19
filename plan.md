@@ -150,7 +150,8 @@ mytunes/
 
 ### 3.2 Data model (desktop library DB, `library.sqlite`)
 ```
-tracks(id TEXT PK /*uuid v7*/, file_path TEXT UNIQUE, file_rev INT, file_hash BLOB /*blake3*/,
+tracks(rowid INTEGER PK /*internal FTS key*/, id TEXT UNIQUE NOT NULL /*uuid v7*/,
+       file_path TEXT UNIQUE, file_rev INT, file_hash BLOB /*blake3*/,
        size_bytes INT, codec TEXT, sample_rate INT, bit_depth INT, bitrate INT, channels INT,
        duration_ms INT, title, artist, album_artist, album, composer, genre, year INT,
        track_no INT, track_total INT, disc_no INT, disc_total INT, compilation BOOL,
@@ -300,6 +301,8 @@ Notation: **As a** *role*, **I want** *capability*, **so that** *benefit*. ACs a
 
 **M0 exit:** E0 complete, the repo public on GitHub, four ADRs (0002–0005) with decisions, plan §2 updated if any spike failed.
 
+_2026-11-19: The owner started M1 while the platform checks remain open. Remaining spike evidence includes Windows WebView2, headphone disconnect on Android, and signed physical-iPhone audio and sync runs. The spike harnesses stay on their own branches. See ADR-0007._
+
 ---
 
 ### M1 — Core library & audio
@@ -309,6 +312,7 @@ Notation: **As a** *role*, **I want** *capability*, **so that** *benefit*. ACs a
   - AC1: The schema in §3.2 is created by migration `V1`. `PRAGMA user_version` tracks the version. Migrations run in a transaction 🧪.
   - AC2: WAL mode. `foreign_keys=ON`. FTS5 virtual table over title/artist/album/album_artist/composer/genre, kept in sync with triggers 🧪.
   - AC3: Opening a DB from a newer schema fails with a typed `SchemaTooNew` error (no silent downgrade) 🧪.
+  - _Status 2026-11-19: V1 implemented with bundled SQLite. Integration tests cover fresh creation, reopening, rollback, WAL and foreign keys, FTS updates and newer-version rejection. Local verification is complete. CI is pending._
 - [ ] **E2.S2 Query layer.** As the desktop and phone UIs, I want typed queries so that views never write SQL.
   - AC1: Functions for tracks (sorted by any column, filtered by FTS query, returning ordered id lists for view snapshots), albums (grouped by album_artist + album, compilation aware → "Various Artists"), artists, genres, composers, playlist contents 🧪.
   - AC2: Sort uses `sort_*` fields when present and ignores a leading "The " for artist sort (classic jukebox behaviour). Collation is Unicode-aware (ICU via `icu_collator`, registered as a SQLite collation) 🧪.
