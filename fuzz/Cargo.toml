@@ -1,0 +1,22 @@
+[package]
+name = "mytunes-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "=0.4.13"
+mt-meta = { path = "../crates/mt-meta" }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "track_metadata"
+path = "fuzz_targets/track_metadata.rs"
+test = false
+doc = false
+bench = false

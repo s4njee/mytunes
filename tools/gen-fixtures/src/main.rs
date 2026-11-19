@@ -54,6 +54,11 @@ const REPLAYGAIN: Tags = &[
     ("REPLAYGAIN_TRACK_GAIN", "-6.50 dB"),
     ("REPLAYGAIN_TRACK_PEAK", "0.988525"),
     ("REPLAYGAIN_ALBUM_GAIN", "-6.20 dB"),
+    ("REPLAYGAIN_ALBUM_PEAK", "1.02"),
+    ("TITLESORT", "Tone, Loud"),
+    ("ARTISTSORT", "Tones, Test"),
+    ("ALBUMSORT", "Fixtures 01"),
+    ("ALBUMARTISTSORT", "Tones, Test"),
 ];
 
 const NONE: Tags = &[];

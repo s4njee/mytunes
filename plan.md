@@ -328,6 +328,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC1: For every fixture format, the extractor returns title, artist, album artist, album, composer, genre, year, track/disc numbers and totals, compilation, sort fields, ReplayGain, duration, codec, sample rate, bit depth, bitrate, channels 🧪.
   - AC2: Missing title falls back to the filename stem. Missing artist or album becomes `NULL` (UI shows "Unknown Artist" / "Unknown Album") 🧪.
   - AC3: Corrupt files return a typed error and never panic (fuzz with `cargo fuzz` for 10 min in CI nightly) 🧪.
+  - _Status 2026-11-19: The metadata reader covers all eight fixture formats. Local fixture tests, workspace tests and Clippy pass. A ten-minute AddressSanitizer fuzz run completed 863,830 inputs. Dependency parser panics become typed errors, with an Opus regression test. Fixture checks and nightly fuzzing are wired into CI. Hosted CI is pending. See ADR-0010._
 - [ ] **E3.S2 Folder scan & incremental rescan.** As a user, I want to add a folder and have it scanned quickly so that I can start listening.
   - AC1: Parallel scan (rayon) of a folder tree. Supported extensions only. Symlink loops are guarded against 🧪.
   - AC2: Progress events `{scanned, total_estimate, current_path}` at ≥ 4 Hz.

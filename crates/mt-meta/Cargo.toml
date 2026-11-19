@@ -9,6 +9,11 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+lofty = "=0.25.5"
+thiserror.workspace = true
+
+[dev-dependencies]
+gen-fixtures = { path = "../../tools/gen-fixtures" }
 
 [lints]
 workspace = true

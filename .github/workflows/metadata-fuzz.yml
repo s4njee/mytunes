@@ -1,0 +1,39 @@
+name: Metadata fuzzing
+
+on:
+  schedule:
+    - cron: '30 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  track-metadata:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Install nightly and cargo-fuzz
+        run: |
+          rustup toolchain install nightly --profile minimal --component rust-src
+          cargo +nightly install cargo-fuzz --version 0.13.2 --locked
+      - name: Seed the corpus with generated audio
+        run: |
+          cargo run --locked -q -p gen-fixtures
+          mkdir -p fuzz/corpus/track_metadata
+          find fixtures/audio/generated -maxdepth 1 -type f ! -name manifest.json \
+            -exec cp -t fuzz/corpus/track_metadata {} +
+      - name: Fuzz the metadata reader for ten minutes
+        run: cargo +nightly fuzz run track_metadata -- -max_total_time=600 -max_len=1048576
+      - name: Preserve crash inputs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: track-metadata-fuzz-crash
+          path: fuzz/artifacts/track_metadata/
+          if-no-files-found: ignore

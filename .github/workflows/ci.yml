@@ -50,6 +50,7 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build
       - run: cargo fmt --all --check
+      - run: cargo fmt --manifest-path fuzz/Cargo.toml --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - name: Desktop library query budgets (50k tracks)
@@ -62,7 +63,10 @@ jobs:
           git diff --exit-code -- apps/desktop/src/bindings.ts
       - name: Generate audio fixtures
         if: runner.os == 'Linux'
-        run: cargo run -q -p gen-fixtures
+        run: cargo run --locked -q -p gen-fixtures
+      - name: Check metadata across audio fixtures
+        if: runner.os == 'Linux'
+        run: cargo test --locked -p mt-meta --test formats -- --ignored
 
   desktop:
     name: Desktop app (${{ matrix.os }})
