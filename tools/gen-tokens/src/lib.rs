@@ -85,6 +85,8 @@ pub struct TypeRole {
     pub letter_spacing_em: f64,
 }
 
+type NumberGroups = Vec<(String, Vec<(String, f64)>)>;
+
 /// Parsed contents of tokens.json. Maps keep the file's key order.
 #[derive(Debug, Clone)]
 pub struct Tokens {
@@ -97,8 +99,16 @@ pub struct Tokens {
     /// Shadows, `(name, dark css, light css)`.
     pub shadows: Vec<(String, String, String)>,
     /// Numeric groups (`radius`, `space`, `size`, `wheel`), each `(name, value)`.
-    pub numbers: Vec<(String, Vec<(String, f64)>)>,
+    pub numbers: NumberGroups,
     pub types: Vec<(String, TypeRole)>,
+    desktop: DesktopTokens,
+}
+
+#[derive(Debug, Clone)]
+struct DesktopTokens {
+    colors: Vec<(String, Rgba, Rgba)>,
+    numbers: NumberGroups,
+    types: Vec<(String, TypeRole)>,
 }
 
 fn obj<'a>(v: &'a Value, key: &str) -> Result<&'a Map<String, Value>, String> {
@@ -121,6 +131,68 @@ fn is_meta(key: &str) -> bool {
     key.starts_with('$')
 }
 
+fn color_roles(root: &Value) -> Result<Vec<(String, Rgba, Rgba)>, String> {
+    let color = obj(root, "color")?;
+    let dark = obj(&Value::Object(color.clone()), "dark")?.clone();
+    let light = obj(&Value::Object(color.clone()), "light")?.clone();
+    let mut colors = Vec::new();
+    for (name, dv) in &dark {
+        let lv = light
+            .get(name)
+            .ok_or_else(|| format!("color.light is missing `{name}`"))?;
+        colors.push((
+            name.clone(),
+            Rgba::parse(str_of(dv, name)?)?,
+            Rgba::parse(str_of(lv, name)?)?,
+        ));
+    }
+    if let Some(extra) = light.keys().find(|k| !dark.contains_key(*k)) {
+        return Err(format!("color.dark is missing `{extra}`"));
+    }
+    Ok(colors)
+}
+
+fn number_groups(root: &Value, groups: &[&str]) -> Result<NumberGroups, String> {
+    let mut numbers = Vec::new();
+    for &group in groups {
+        let mut items = Vec::new();
+        for (k, v) in obj(root, group)? {
+            if !is_meta(k) {
+                items.push((k.clone(), num_of(v, k)?));
+            }
+        }
+        numbers.push((group.to_owned(), items));
+    }
+    Ok(numbers)
+}
+
+fn type_roles(root: &Value) -> Result<Vec<(String, TypeRole)>, String> {
+    let mut types = Vec::new();
+    for (name, v) in obj(root, "type")? {
+        if is_meta(name) {
+            continue;
+        }
+        let a = v.as_array().filter(|a| a.len() == 5).ok_or_else(|| {
+            format!("type.{name} must be [family, weight, size, lineHeight, letterSpacingEm]")
+        })?;
+        let family = str_of(&a[0], name)?;
+        if family != "sans" && family != "mono" {
+            return Err(format!("type.{name}: family must be 'sans' or 'mono'"));
+        }
+        types.push((
+            name.clone(),
+            TypeRole {
+                mono: family == "mono",
+                weight: num_of(&a[1], name)? as u16,
+                size: num_of(&a[2], name)?,
+                line_height: num_of(&a[3], name)?,
+                letter_spacing_em: num_of(&a[4], name)?,
+            },
+        ));
+    }
+    Ok(types)
+}
+
 impl Tokens {
     /// Parses and validates tokens.json.
     pub fn parse(source: &str) -> Result<Self, String> {
@@ -130,23 +202,7 @@ impl Tokens {
         let font_sans = str_of(font.get("sans").unwrap_or(&Value::Null), "font.sans")?.to_owned();
         let font_mono = str_of(font.get("mono").unwrap_or(&Value::Null), "font.mono")?.to_owned();
 
-        let color = obj(&root, "color")?;
-        let dark = obj(&Value::Object(color.clone()), "dark")?.clone();
-        let light = obj(&Value::Object(color.clone()), "light")?.clone();
-        let mut colors = Vec::new();
-        for (name, dv) in &dark {
-            let lv = light
-                .get(name)
-                .ok_or_else(|| format!("color.light is missing `{name}`"))?;
-            colors.push((
-                name.clone(),
-                Rgba::parse(str_of(dv, name)?)?,
-                Rgba::parse(str_of(lv, name)?)?,
-            ));
-        }
-        if let Some(extra) = light.keys().find(|k| !dark.contains_key(*k)) {
-            return Err(format!("color.dark is missing `{extra}`"));
-        }
+        let colors = color_roles(&root)?;
 
         let art = obj(&root, "placeholderArt")?;
         let pairs = |theme: &str| -> Result<Vec<(Rgba, Rgba)>, String> {
@@ -194,40 +250,15 @@ impl Tokens {
             ));
         }
 
-        let mut numbers = Vec::new();
-        for group in ["radius", "space", "size", "wheel"] {
-            let mut items = Vec::new();
-            for (k, v) in obj(&root, group)? {
-                if !is_meta(k) {
-                    items.push((k.clone(), num_of(v, k)?));
-                }
-            }
-            numbers.push((group.to_owned(), items));
-        }
+        let numbers = number_groups(&root, &["radius", "space", "size", "wheel"])?;
+        let types = type_roles(&root)?;
 
-        let mut types = Vec::new();
-        for (name, v) in obj(&root, "type")? {
-            if is_meta(name) {
-                continue;
-            }
-            let a = v.as_array().filter(|a| a.len() == 5).ok_or_else(|| {
-                format!("type.{name} must be [family, weight, size, lineHeight, letterSpacingEm]")
-            })?;
-            let family = str_of(&a[0], name)?;
-            if family != "sans" && family != "mono" {
-                return Err(format!("type.{name}: family must be 'sans' or 'mono'"));
-            }
-            types.push((
-                name.clone(),
-                TypeRole {
-                    mono: family == "mono",
-                    weight: num_of(&a[1], name)? as u16,
-                    size: num_of(&a[2], name)?,
-                    line_height: num_of(&a[3], name)?,
-                    letter_spacing_em: num_of(&a[4], name)?,
-                },
-            ));
-        }
+        let desktop = root.get("desktop").ok_or("missing desktop tokens")?;
+        let desktop = DesktopTokens {
+            colors: color_roles(desktop)?,
+            numbers: number_groups(desktop, &["radius", "space", "size"])?,
+            types: type_roles(desktop)?,
+        };
 
         Ok(Self {
             font_sans,
@@ -238,6 +269,7 @@ impl Tokens {
             shadows,
             numbers,
             types,
+            desktop,
         })
     }
 
@@ -304,44 +336,8 @@ pub fn css(t: &Tokens) -> String {
         "  --mt-font-mono: \"{}\", ui-monospace, monospace;",
         t.font_mono
     );
-    for (group, items) in &t.numbers {
-        for (name, v) in items {
-            let unit = if group == "wheel"
-                && (name.ends_with("Deg") || name.ends_with("Degrees") || name.ends_with("Stop"))
-            {
-                ""
-            } else {
-                "px"
-            };
-            let _ = writeln!(
-                s,
-                "  --mt-{group}-{}: {}{unit};",
-                kebab(name),
-                trim_float(*v)
-            );
-        }
-    }
-    for (name, role) in &t.types {
-        let fam = if role.mono {
-            "var(--mt-font-mono)"
-        } else {
-            "var(--mt-font-sans)"
-        };
-        let _ = writeln!(
-            s,
-            "  --mt-type-{}: {} {}px/{} {fam};",
-            kebab(name),
-            role.weight,
-            trim_float(role.size),
-            trim_float(role.line_height)
-        );
-        let _ = writeln!(
-            s,
-            "  --mt-type-{}-tracking: {}em;",
-            kebab(name),
-            trim_float(role.letter_spacing_em)
-        );
-    }
+    css_numbers_and_type(&mut s, "mt", &t.numbers, &t.types);
+    css_numbers_and_type(&mut s, "mt-desktop", &t.desktop.numbers, &t.desktop.types);
     s.push_str(&theme_block(t, false));
     s.push_str("}\n\n");
 
@@ -354,15 +350,63 @@ pub fn css(t: &Tokens) -> String {
     s
 }
 
+fn css_numbers_and_type(
+    s: &mut String,
+    prefix: &str,
+    numbers: &[(String, Vec<(String, f64)>)],
+    types: &[(String, TypeRole)],
+) {
+    for (group, items) in numbers {
+        for (name, v) in items {
+            let unit = if group == "wheel"
+                && (name.ends_with("Deg") || name.ends_with("Degrees") || name.ends_with("Stop"))
+            {
+                ""
+            } else {
+                "px"
+            };
+            let _ = writeln!(
+                s,
+                "  --{prefix}-{group}-{}: {}{unit};",
+                kebab(name),
+                trim_float(*v)
+            );
+        }
+    }
+    for (name, role) in types {
+        let fam = if role.mono {
+            "var(--mt-font-mono)"
+        } else {
+            "var(--mt-font-sans)"
+        };
+        let _ = writeln!(
+            s,
+            "  --{prefix}-type-{}: {} {}px/{} {fam};",
+            kebab(name),
+            role.weight,
+            trim_float(role.size),
+            trim_float(role.line_height)
+        );
+        let _ = writeln!(
+            s,
+            "  --{prefix}-type-{}-tracking: {}em;",
+            kebab(name),
+            trim_float(role.letter_spacing_em)
+        );
+    }
+}
+
 fn indent(block: &str) -> String {
     block.lines().map(|l| format!("  {l}\n")).collect()
 }
 
 fn theme_block(t: &Tokens, dark: bool) -> String {
     let mut s = String::new();
-    for (name, d, l) in &t.colors {
-        let c = if dark { d } else { l };
-        let _ = writeln!(s, "  --mt-{}: {};", kebab(name), c.css());
+    for (prefix, colors) in [("mt", &t.colors), ("mt-desktop", &t.desktop.colors)] {
+        for (name, d, l) in colors {
+            let c = if dark { d } else { l };
+            let _ = writeln!(s, "  --{prefix}-{}: {};", kebab(name), c.css());
+        }
     }
     let art = if dark {
         &t.placeholder_dark

@@ -5,4 +5,9 @@ import "./styles.css";
 const root = document.getElementById("root");
 if (!root) throw new Error("#root element missing from index.html");
 
-render(() => <App />, root);
+if (import.meta.env.MODE === "mock") {
+  const { DesktopMock } = await import("./mock/DesktopMock");
+  render(() => <DesktopMock />, root);
+} else {
+  render(() => <App />, root);
+}

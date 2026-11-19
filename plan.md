@@ -385,6 +385,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC1: A static Solid page (dummy data, no IPC) of the main window in **light (2a palette: white/silver/blue)** and **dark (1a palette: ink/panel/amber)**, runnable via `pnpm dev:mock`. Screenshots are saved to `design/desktop/`.
   - AC2: The layout follows the structure below. Typography is Plex Sans and JetBrains Mono. Uses only `tokens.json` families plus any new desktop tokens, which are listed explicitly and added to `tokens.json`.
   - AC3: Owner sign-off is recorded in `docs/decisions/`. Mock components become the real components (no throwaway).
+  - _Status 2026-11-19: The static Solid mock runs via `pnpm dev:mock`. Both theme screenshots are in `design/desktop/`. Owner sign-off and hosted CI are pending. See ADR-0019._
 
   Structural spec for the main window (2005-era jukebox):
   ```
