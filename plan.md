@@ -334,6 +334,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC2: Progress events `{scanned, total_estimate, current_path}` at ≥ 4 Hz.
   - AC3: Rescan skips files whose `(size, mtime)` are unchanged. Changed files are re-read. Deleted files are marked `missing=1`, not deleted 🧪.
   - AC4: 10,000 fixture-sized files are scanned in < 60 s on SSD (bench, informational).
+  - _Status 2026-11-19: Parallel scanning and SQLite reconciliation are implemented. Local NVMe benchmark imported 10,000 files in 1.22 s and rescanned unchanged files in 35.16 ms, with progress callbacks every 250 ms during file processing. Workspace tests and Clippy pass locally. Hosted CI is pending. See ADR-0011._
 - [ ] **E3.S3 Artwork.** As a user, I want album art everywhere so that browsing feels like the real thing.
   - AC1: Embedded art (front cover preferred) is extracted. Otherwise `cover.jpg|folder.jpg|front.*` in the track's folder is used 🧪.
   - AC2: Artwork is deduped by blake3. 300 px and 600 px square JPEG thumbnails (q=85, centre-crop) are generated off the UI thread 🧪.

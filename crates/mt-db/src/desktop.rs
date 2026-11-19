@@ -11,6 +11,7 @@ const DESKTOP_SCHEMA: Schema = Schema {
     migrations: &[
         (1, include_str!("../migrations/desktop/V1.sql")),
         (2, include_str!("../migrations/desktop/V2.sql")),
+        (3, include_str!("../migrations/desktop/V3.sql")),
     ],
 };
 

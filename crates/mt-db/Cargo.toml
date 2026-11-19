@@ -10,13 +10,15 @@ publish.workspace = true
 
 [dependencies]
 icu_collator = "=2.4.0"
+mt-meta.workspace = true
 mt-types.workspace = true
 rusqlite = { version = "=0.43.0", features = ["bundled", "collation", "functions", "cache", "uuid"] }
 serde_json.workspace = true
 thiserror.workspace = true
-uuid = "=1.29.3"
+uuid = { version = "=1.29.3", features = ["v7"] }
 
 [dev-dependencies]
+gen-fixtures = { path = "../../tools/gen-fixtures" }
 tempfile = "3"
 
 [lints]
@@ -24,4 +26,8 @@ workspace = true
 
 [[bench]]
 name = "library_queries"
+harness = false
+
+[[bench]]
+name = "folder_scan"
 harness = false
