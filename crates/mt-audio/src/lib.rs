@@ -1,3 +1,9 @@
-//! Audio engine: decoding, gapless queue, EQ, ReplayGain and output.
-//!
-//! See plan.md §3 for this crate's role. Implemented from milestone M1 onwards.
+//! Streaming local audio playback for MyTunes.
+
+mod decode;
+mod output;
+mod render;
+
+pub use decode::{AudioDecodeError, AudioDecoder, AudioSpec};
+pub use output::{OutputError, play_file};
+pub use render::{RenderError, RenderStream};

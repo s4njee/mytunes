@@ -36,6 +36,12 @@ allow = [
   "CDLA-Permissive-2.0",
 ]
 
+# Debug audio callback allocation guard.
+[[licenses.exceptions]]
+name = "assert_no_alloc"
+version = "=1.1.2"
+allow = ["BSD-1-Clause"]
+
 [licenses.private]
 ignore = true
 

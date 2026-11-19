@@ -9,6 +9,18 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+assert_no_alloc = "=1.1.2"
+audioadapter-buffers = "=5.2.0"
+cpal = "=0.18.2"
+opus = "=0.4.0"
+ringbuf = "=0.6.0"
+rubato = "=5.1.0"
+symphonia = { version = "=0.6.1", default-features = false, features = ["aac", "aiff", "alac", "all-meta", "flac", "isomp4", "mp3", "ogg", "pcm", "vorbis", "wav"] }
+thiserror.workspace = true
+
+[dev-dependencies]
+gen-fixtures = { path = "../../tools/gen-fixtures" }
+tempfile = "=3.27.0"
 
 [lints]
 workspace = true

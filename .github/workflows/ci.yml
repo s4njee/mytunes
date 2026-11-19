@@ -67,6 +67,23 @@ jobs:
       - name: Check metadata across audio fixtures
         if: runner.os == 'Linux'
         run: cargo test --locked -p mt-meta --test formats -- --ignored
+      - name: Check streaming decode and seek across audio fixtures
+        if: runner.os == 'Linux'
+        run: cargo test --locked -p mt-audio --test decode -- --ignored
+      - name: Play audio fixtures through CPAL on the ALSA null device
+        if: runner.os == 'Linux'
+        run: |
+          alsa_config="$RUNNER_TEMP/mytunes-alsa.conf"
+          cat > "$alsa_config" <<'EOF'
+          pcm.!default {
+              type null
+              hint {
+                  show on
+                  description "MyTunes CI playback"
+              }
+          }
+          EOF
+          ALSA_CONFIG_PATH="$alsa_config" cargo test --locked -p mt-audio --test device -- --ignored
 
   desktop:
     name: Desktop app (${{ matrix.os }})
