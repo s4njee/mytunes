@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::thread::{self, JoinHandle};
 
 use crate::render::{RateConverter, mix_channels, output_frame};
-use crate::{AudioDecoder, AudioSpec, RenderError};
+use crate::{AudioDecoder, AudioSpec, RenderError, ReplayGain};
 
 const PREFETCH_AHEAD_MS: u64 = 10_500;
 const FADE_MS: usize = 5;
@@ -12,6 +12,8 @@ const FADE_MS: usize = 5;
 pub struct QueuedBlock<'a> {
     /// Zero-based index in the original queue.
     pub track_index: usize,
+    /// Loudness normalization tags for the track supplying the block.
+    pub replay_gain: ReplayGain,
     /// Interleaved samples in the queue's output layout.
     pub samples: &'a [f32],
 }
@@ -29,12 +31,19 @@ pub struct AudioQueue {
 struct OutputRun {
     rate: u32,
     converter: Option<RateConverter>,
-    markers: VecDeque<(u64, usize)>,
+    markers: VecDeque<TrackMarker>,
     track_index: usize,
+    replay_gain: ReplayGain,
     written: u64,
     total_input: u64,
     samples: Vec<f32>,
     sample_offset: usize,
+}
+
+struct TrackMarker {
+    frame: u64,
+    index: usize,
+    replay_gain: ReplayGain,
 }
 
 struct QueueInput {
@@ -96,7 +105,12 @@ impl AudioQueue {
     ) -> Result<Self, RenderError> {
         let (first, rest) = paths.split_first().ok_or(RenderError::EmptyQueue)?;
         let current = PreparedTrack::open(first, position_ms)?;
-        let run = OutputRun::new(current.decoder.spec().sample_rate, output, 0)?;
+        let run = OutputRun::new(
+            current.decoder.spec().sample_rate,
+            output,
+            0,
+            current.decoder.replay_gain(),
+        )?;
         let fade_frames = if gapless {
             0
         } else {
@@ -119,6 +133,10 @@ impl AudioQueue {
             faded: Vec::new(),
             ended: false,
         })
+    }
+
+    pub(crate) fn initial_replay_gain(&self) -> ReplayGain {
+        self.run.replay_gain
     }
 
     /// Fetch the next rendered block or end of the queue.
@@ -149,6 +167,7 @@ impl AudioQueue {
                         });
                         return Ok(Some(QueuedBlock {
                             track_index: self.run.track_index,
+                            replay_gain: self.run.replay_gain,
                             samples: &self.faded,
                         }));
                     }
@@ -160,6 +179,7 @@ impl AudioQueue {
                         self.input.current.decoder.spec().sample_rate,
                         self.input.output,
                         self.input.index,
+                        self.input.current.decoder.replay_gain(),
                     )?;
                     continue;
                 }
@@ -170,6 +190,7 @@ impl AudioQueue {
             if continuous {
                 return Ok(Some(QueuedBlock {
                     track_index: self.run.track_index,
+                    replay_gain: self.run.replay_gain,
                     samples: &self.run.samples[start..end],
                 }));
             }
@@ -192,6 +213,7 @@ impl AudioQueue {
             if !self.faded.is_empty() {
                 return Ok(Some(QueuedBlock {
                     track_index: self.run.track_index,
+                    replay_gain: self.run.replay_gain,
                     samples: &self.faded,
                 }));
             }
@@ -200,12 +222,18 @@ impl AudioQueue {
 }
 
 impl OutputRun {
-    fn new(rate: u32, output: AudioSpec, track_index: usize) -> Result<Self, RenderError> {
+    fn new(
+        rate: u32,
+        output: AudioSpec,
+        track_index: usize,
+        replay_gain: ReplayGain,
+    ) -> Result<Self, RenderError> {
         Ok(Self {
             rate,
             converter: RateConverter::for_rates(rate, output)?,
             markers: VecDeque::new(),
             track_index,
+            replay_gain,
             written: 0,
             total_input: 0,
             samples: Vec::new(),
@@ -233,16 +261,17 @@ impl OutputRun {
         while self
             .markers
             .front()
-            .is_some_and(|&(at, _)| at <= self.written)
+            .is_some_and(|marker| marker.frame <= self.written)
         {
-            if let Some((_, index)) = self.markers.pop_front() {
-                self.track_index = index;
+            if let Some(marker) = self.markers.pop_front() {
+                self.track_index = marker.index;
+                self.replay_gain = marker.replay_gain;
             }
         }
         let start = self.sample_offset;
         let available = (self.samples.len() - start) / channels;
-        let frames = self.markers.front().map_or(available, |&(at, _)| {
-            usize::try_from(at - self.written)
+        let frames = self.markers.front().map_or(available, |marker| {
+            usize::try_from(marker.frame - self.written)
                 .unwrap_or(usize::MAX)
                 .min(available)
         });
@@ -259,7 +288,7 @@ impl QueueInput {
         run_rate: u32,
         run_frames: u64,
         continuous: bool,
-        markers: &mut VecDeque<(u64, usize)>,
+        markers: &mut VecDeque<TrackMarker>,
     ) -> Result<usize, RenderError> {
         while !self.exhausted && self.current.decoder.spec().sample_rate == run_rate {
             self.prefetch_if_due()?;
@@ -272,10 +301,11 @@ impl QueueInput {
                 break;
             }
             if self.current.decoder.spec().sample_rate == run_rate {
-                markers.push_back((
-                    output_frame(run_frames, run_rate, self.output.sample_rate),
-                    self.index,
-                ));
+                markers.push_back(TrackMarker {
+                    frame: output_frame(run_frames, run_rate, self.output.sample_rate),
+                    index: self.index,
+                    replay_gain: self.current.decoder.replay_gain(),
+                });
             }
         }
         Ok(0)

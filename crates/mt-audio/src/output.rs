@@ -9,7 +9,7 @@ use cpal::{FromSample, Sample, SampleFormat, SizedSample};
 use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::{HeapCons, HeapRb};
 
-use crate::{AudioQueue, AudioSpec, RenderError};
+use crate::{AudioQueue, AudioSpec, Dsp, DspError, DspSettings, RenderError};
 
 #[cfg(debug_assertions)]
 #[global_allocator]
@@ -24,6 +24,9 @@ pub enum OutputError {
     /// The track could not be rendered for the device.
     #[error(transparent)]
     Render(#[from] RenderError),
+    /// Playback effects could not be applied.
+    #[error(transparent)]
+    Dsp(#[from] DspError),
     /// There is no default playback device.
     #[error("No default audio output device")]
     NoDevice,
@@ -61,6 +64,22 @@ pub fn play_file(path: impl AsRef<Path>, position_ms: u64) -> Result<u64, Output
 ///
 /// Returns an error if a track or the output device fails.
 pub fn play_queue(paths: &[PathBuf], position_ms: u64, gapless: bool) -> Result<u64, OutputError> {
+    play_queue_with_dsp(paths, position_ms, gapless, DspSettings::default())
+}
+
+/// Play a queue through one device with the requested EQ and loudness settings.
+///
+/// Select album Sound Check when the queue represents an album in track order.
+///
+/// # Errors
+///
+/// Returns an error for invalid effects settings, failed media, or device setup.
+pub fn play_queue_with_dsp(
+    paths: &[PathBuf],
+    position_ms: u64,
+    gapless: bool,
+    settings: DspSettings,
+) -> Result<u64, OutputError> {
     let device = cpal::default_host()
         .default_output_device()
         .ok_or(OutputError::NoDevice)?;
@@ -72,6 +91,8 @@ pub fn play_queue(paths: &[PathBuf], position_ms: u64, gapless: bool) -> Result<
         channels: usize::from(config.channels),
     };
     let mut queue = AudioQueue::open(paths, spec, position_ms, gapless)?;
+    let mut effects = Dsp::new(spec, settings, queue.initial_replay_gain())?;
+    let mut processed = Vec::new();
 
     let (mut producer, consumer) = ring(spec).split();
     let state = Arc::new(CallbackState::default());
@@ -94,7 +115,11 @@ pub fn play_queue(paths: &[PathBuf], position_ms: u64, gapless: bool) -> Result<
     let mut started = false;
     let mut watchdog = PlaybackWatchdog::new();
     while let Some(block) = queue.next_block()? {
-        let mut remaining = block.samples;
+        effects.set_replay_gain(block.replay_gain);
+        processed.clear();
+        processed.extend_from_slice(block.samples);
+        effects.process(&mut processed)?;
+        let mut remaining = processed.as_slice();
         while !remaining.is_empty() {
             let written = producer.push_slice(remaining);
             total += (written / spec.channels) as u64;

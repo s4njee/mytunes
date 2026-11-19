@@ -33,6 +33,7 @@ fn plays_the_generated_audio_formats_through_cpal() {
 #[ignore = "requires a CPAL playback device and generated audio fixtures"]
 fn plays_a_gapless_pair_through_one_cpal_stream() {
     use cpal::traits::{DeviceTrait, HostTrait};
+    use mt_audio::{DspSettings, SoundCheck};
 
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/audio/generated");
     let rate = cpal::default_host()
@@ -47,7 +48,18 @@ fn plays_a_gapless_pair_through_one_cpal_stream() {
             fixtures.join(format!("gapless_b.{extension}")),
         ];
         assert_eq!(
-            mt_audio::play_queue(&paths, 0, true).unwrap(),
+            mt_audio::play_queue_with_dsp(
+                &paths,
+                0,
+                true,
+                DspSettings {
+                    eq_db: [3, 1, -2, 4, 2],
+                    volume: 0.75,
+                    volume_limit: 0.5,
+                    sound_check: SoundCheck::Album,
+                }
+            )
+            .unwrap(),
             6 * u64::from(rate),
             "{extension}"
         );

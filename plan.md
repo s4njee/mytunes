@@ -362,6 +362,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC2: Volume limit caps the output gain at a user-set max 🧪.
   - AC3: Sound Check applies ReplayGain track gain (album gain when playing an album in order). A pre-amp of −6 dB plus the limiter prevents clipping 🧪.
   - AC4: Parameter changes are smoothed over 20 ms, so there are no zipper noises.
+  - _Status 2026-11-19: The playback feeder applies EQ, capped volume, track or album Sound Check, and a soft limiter. Local sine sweep, smoothing, fixture metadata, and CPAL checks pass. Hosted CI is pending. See ADR-0016._
 - [ ] **E4.S4 Player API & events.** As both UIs, I want one player API so that behaviour is consistent.
   - AC1: API per §3.4. `prev` restarts if elapsed > 4 s, else goes to the previous track (wrapping). `next` wraps. Both reset position to 0 (the handoff's rules) 🧪.
   - AC2: Event stream emits state changes immediately and position at 4 Hz. Track end auto-advances to the next queue item (not loop) 🧪.

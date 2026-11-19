@@ -11,6 +11,7 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::units::{Duration, Time, TimeBase, Timestamp};
 
+use crate::ReplayGain;
 use crate::mp4_timing::{PlaybackWindow, aac_window};
 
 /// Sample rate and channel count of interleaved PCM.
@@ -72,6 +73,7 @@ pub struct AudioDecoder {
     media_start: Timestamp,
     duration_ms: Option<u64>,
     window: Option<PlaybackWindow>,
+    replay_gain: ReplayGain,
     seek_target: Option<Timestamp>,
     packet_samples: Vec<f32>,
 }
@@ -153,10 +155,13 @@ impl AudioDecoder {
             .duration
             .and_then(|ticks| time_base.calc_duration(ticks))
             .and_then(|duration| u64::try_from(duration.as_millis()).ok());
-        let window = if params.codec == CODEC_ID_AAC {
-            File::open(path).ok().and_then(|file| {
-                aac_window(file, track_id, sample_rate, container.metadata().current())
-            })
+        let aac = params.codec == CODEC_ID_AAC;
+        let metadata = container.metadata();
+        let replay_gain = ReplayGain::from_metadata(metadata.current(), track_id);
+        let window = if aac {
+            File::open(path)
+                .ok()
+                .and_then(|file| aac_window(file, track_id, sample_rate, metadata.current()))
         } else {
             None
         };
@@ -181,6 +186,7 @@ impl AudioDecoder {
             media_start: audio_start,
             duration_ms,
             window,
+            replay_gain,
             container,
             codec,
             spec,
@@ -193,6 +199,11 @@ impl AudioDecoder {
     /// Sample rate and channel count used by this track.
     pub fn spec(&self) -> AudioSpec {
         self.spec
+    }
+
+    /// Loudness normalization tags for the selected audio track.
+    pub fn replay_gain(&self) -> ReplayGain {
+        self.replay_gain
     }
 
     /// Duration indicated by the demuxer, where available.

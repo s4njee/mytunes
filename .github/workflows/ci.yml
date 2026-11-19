@@ -67,9 +67,9 @@ jobs:
       - name: Check metadata across audio fixtures
         if: runner.os == 'Linux'
         run: cargo test --locked -p mt-meta --test formats -- --ignored
-      - name: Check streaming decode, seek, and gapless transitions
+      - name: Check decode, gapless transitions, and ReplayGain tags
         if: runner.os == 'Linux'
-        run: cargo test --locked -p mt-audio --test decode --test gapless -- --ignored
+        run: cargo test --locked -p mt-audio --test decode --test gapless --test dsp -- --ignored
       - name: Play audio fixtures through CPAL on the ALSA null device
         if: runner.os == 'Linux'
         run: |
