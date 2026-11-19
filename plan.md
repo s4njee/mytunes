@@ -344,6 +344,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC1: Write title/artist/album/album artist/genre/year/track/disc/compilation/rating/artwork with lofty, preserving unrelated frames 🧪.
   - AC2: Writes are atomic (write temp, then rename) and update `size/mtime` in the DB so the next rescan doesn't treat them as external changes. `file_rev` is **not** bumped 🧪.
   - AC3: Read-only files produce a user-visible error, and the DB is not partially updated 🧪.
+  - _Status 2026-11-19: Tag edits stage a verified replacement and update the library fingerprint at the existing file revision. Local tests cover all eight fixture formats, read-only rejection, and restoration after a failed SQLite commit. Hosted CI is pending. See ADR-0013._
 
 #### E4 Audio engine (`mt-audio`)
 - [ ] **E4.S1 Decode & output.** As a listener, I want any supported file to play cleanly so that I trust the player.

@@ -231,3 +231,100 @@ fn reads_embedded_covers_from_mp3_mp4_and_flac() {
     assert!(errors.is_empty());
     assert_eq!(covered.len(), wanted.len());
 }
+
+#[test]
+#[ignore = "run after cargo run -p gen-fixtures with ffmpeg installed"]
+fn edits_every_supported_audio_format_and_preserves_unrelated_tags() {
+    use lofty::file::TaggedFileExt;
+    use lofty::tag::{Accessor, ItemKey};
+    use mt_meta::tag_write::{PreparedTagWrite, TagEdit::Set, TagEdits};
+
+    let dir = tempfile::tempdir().unwrap();
+    let mut cover = Cursor::new(Vec::new());
+    image::DynamicImage::new_rgb8(32, 32)
+        .write_to(&mut cover, image::ImageFormat::Png)
+        .unwrap();
+    for filename in [
+        "mp3_cbr320.mp3",
+        "aac_256.m4a",
+        "alac_16_44.m4a",
+        "flac_16_44.flac",
+        "wav_16_44_untagged.wav",
+        "aiff_16_44.aiff",
+        "ogg_vorbis.ogg",
+        "opus.opus",
+    ] {
+        let file = dir.path().join(filename);
+        fs::copy(fixture_path(filename), &file).unwrap();
+        let prior = read_metadata(&file).unwrap();
+        let tag = TagEdits {
+            title: Set("Updated 🎵".into()),
+            artist: Set("Edited artist".into()),
+            album: Set("Edited album".into()),
+            album_artist: Set("Edited album artist".into()),
+            genre: Set("Edited genre".into()),
+            year: Set(2025),
+            track_number: Set(7),
+            track_total: Set(12),
+            disc_number: Set(2),
+            disc_total: Set(3),
+            compilation: Set(true),
+            rating: Set(80),
+            front_cover: Set(cover.get_ref().clone()),
+        };
+
+        let staged = PreparedTagWrite::prepare(&file, &tag)
+            .unwrap_or_else(|error| panic!("{filename}: {error:?}"));
+        assert_eq!(read_metadata(&file).unwrap(), prior, "{filename}");
+        assert!(staged.artwork.is_some(), "{filename}");
+        drop(staged.publish().unwrap());
+        let result = read_metadata(&file).unwrap();
+        assert_eq!(result.title, "Updated 🎵", "{filename}");
+        assert_eq!(
+            result.artist.as_deref(),
+            Some("Edited artist"),
+            "{filename}"
+        );
+        assert_eq!(result.album.as_deref(), Some("Edited album"), "{filename}");
+        assert_eq!(
+            result.album_artist.as_deref(),
+            Some("Edited album artist"),
+            "{filename}"
+        );
+        assert_eq!(result.genre.as_deref(), Some("Edited genre"), "{filename}");
+        assert_eq!(result.year, Some(2025), "{filename}");
+        assert_eq!(
+            (result.track_number, result.track_total),
+            (Some(7), Some(12)),
+            "{filename}"
+        );
+        assert_eq!(
+            (result.disc_number, result.disc_total),
+            (Some(2), Some(3)),
+            "{filename}"
+        );
+        assert_eq!(result.compilation, Some(true), "{filename}");
+        assert_eq!(result.composer, prior.composer, "{filename}");
+        assert_eq!(result.audio.codec, prior.audio.codec, "{filename}");
+        assert_eq!(
+            result.audio.sample_rate_hz, prior.audio.sample_rate_hz,
+            "{filename}"
+        );
+
+        let file = lofty::read_from_path(&file).unwrap();
+        let primary = file.primary_tag().expect(filename);
+        assert_eq!(primary.title().as_deref(), Some("Updated 🎵"), "{filename}");
+        assert!(
+            primary.ratings().any(|rate| rate.rating() as u8 == 4),
+            "{filename} stored rating: {:?}",
+            primary.get_string(ItemKey::Popularimeter)
+        );
+        assert!(
+            primary
+                .pictures()
+                .iter()
+                .any(|picture| picture.data() == cover.get_ref()),
+            "{filename}"
+        );
+    }
+}

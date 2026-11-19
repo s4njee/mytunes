@@ -29,7 +29,7 @@ pub struct FileStamp {
 }
 
 impl FileStamp {
-    fn from_metadata(metadata: &Metadata) -> io::Result<Self> {
+    pub(crate) fn from_metadata(metadata: &Metadata) -> io::Result<Self> {
         if !metadata.is_file() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,

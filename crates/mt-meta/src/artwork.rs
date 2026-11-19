@@ -137,6 +137,10 @@ impl<'a> ArtworkCache<'a> {
         })
     }
 
+    pub(crate) fn is_valid_image(&self, bytes: &[u8]) -> bool {
+        self.prepare(bytes, ArtworkSource::EmbeddedFront).is_some()
+    }
+
     fn prepare(&self, bytes: &[u8], source: ArtworkSource) -> Option<Arc<TrackArtwork>> {
         if bytes.is_empty() || bytes.len() > MAX_SOURCE_BYTES {
             return None;

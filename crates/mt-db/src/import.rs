@@ -4,7 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use crate::artwork::{assign_album_artwork, source_priority};
+use crate::artwork::{INSERT_ARTWORK, assign_album_artwork, source_priority};
 use mt_meta::artwork::{ArtworkSource, TrackArtwork};
 use mt_meta::scan::{
     CachedTrack, FileStamp, ReadTrack, ScanFileError, ScanProgress, WalkError, scan_tree,
@@ -113,10 +113,7 @@ pub fn scan_library_folder(
 
     {
         let mut upsert = transaction.prepare(UPSERT_TRACK)?;
-        let mut insert_artwork = transaction.prepare(
-            "INSERT INTO artwork (id, thumb_300, thumb_600) VALUES (?1, ?2, ?3)
-             ON CONFLICT(id) DO NOTHING",
-        )?;
+        let mut insert_artwork = transaction.prepare(INSERT_ARTWORK)?;
         let mut refresh_folder_art = transaction.prepare(
             "UPDATE tracks SET artwork_source_id = ?1, artwork_source_kind = ?2
               WHERE file_path = ?3 AND coalesce(artwork_source_kind, ?4) = ?4
@@ -144,7 +141,7 @@ pub fn scan_library_folder(
                 }
                 match (file.result, file.path.to_str()) {
                     (Ok(Some(track)), Some(path)) => {
-                        save_track(&mut upsert, path, track, added_at_ms, artwork)?;
+                        save_track(&mut upsert, path, &track, added_at_ms, artwork, true)?;
                         artwork_dirty = true;
                         report.read += 1;
                     }
@@ -226,15 +223,16 @@ fn missing_file(path: &Path) -> io::Result<bool> {
     }
 }
 
-fn save_track(
+pub(crate) fn save_track(
     statement: &mut rusqlite::Statement<'_>,
     path: &str,
-    track: ReadTrack,
+    track: &ReadTrack,
     added_at_ms: Option<i64>,
     artwork: Option<&TrackArtwork>,
+    advance_revision: bool,
 ) -> rusqlite::Result<()> {
-    let tags = track.metadata;
-    let audio = tags.audio;
+    let tags = &track.metadata;
+    let audio = &tags.audio;
     let duration_ms = i64::try_from(audio.duration_ms)
         .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
     statement.execute(named_params! {
@@ -271,11 +269,12 @@ fn save_track(
         ":album_gain": tags.replay_gain.album_gain_db,
         ":artwork_source_id": artwork.map(|cover| cover.id.as_str()),
         ":artwork_source_kind": artwork.map(|cover| source_priority(cover.source)),
+        ":advance_revision": advance_revision,
     })?;
     Ok(())
 }
 
-const UPSERT_TRACK: &str = "
+pub(crate) const UPSERT_TRACK: &str = "
     INSERT INTO tracks (
         id, file_path, file_hash, size_bytes, file_mtime_ns, codec, sample_rate, bit_depth,
         bitrate, channels, duration_ms, title, artist, album_artist, album, composer, genre,
@@ -290,7 +289,8 @@ const UPSERT_TRACK: &str = "
         :sort_title, :sort_artist, :sort_album, :sort_album_artist,
         :added, :modified, :track_gain, :album_gain, :artwork_source_id, :artwork_source_kind
     ) ON CONFLICT(file_path) DO UPDATE SET
-        file_rev = tracks.file_rev + (tracks.file_hash IS NOT NULL AND tracks.file_hash <> excluded.file_hash),
+        file_rev = tracks.file_rev + (:advance_revision AND tracks.file_hash IS NOT NULL
+            AND tracks.file_hash <> excluded.file_hash),
         file_hash = excluded.file_hash, size_bytes = excluded.size_bytes,
         file_mtime_ns = excluded.file_mtime_ns, codec = excluded.codec,
         sample_rate = excluded.sample_rate, bit_depth = excluded.bit_depth,

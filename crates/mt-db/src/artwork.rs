@@ -58,3 +58,7 @@ pub(crate) fn assign_album_artwork(db: &Connection) -> rusqlite::Result<()> {
     db.execute(&sql, [])?;
     Ok(())
 }
+
+pub(crate) const INSERT_ARTWORK: &str =
+    "INSERT INTO artwork (id, thumb_300, thumb_600) VALUES (?1, ?2, ?3)
+     ON CONFLICT(id) DO NOTHING";
