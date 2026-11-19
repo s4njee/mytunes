@@ -33,6 +33,11 @@ headroom over music, and preservation of the paused music queue. The
 player smoke test also requests a click through the public API while
 paused on a Linux ALSA null device.
 
+A separate run captured PCM from the public `Player::play_sfx(Click)`
+path through CPAL and the ALSA file output with music paused. The 48 kHz
+stereo capture contains one click spanning 574 frames (11.96 ms), with
+silence before and after it. This measures the rendered signal length.
+
 The full audio crate checks for `aarch64-apple-ios` with Rust 1.98.0
 and Xcode 27.2. A SwiftUI probe linked the current `Player` into an
 arm64 iPhone app. On the iOS simulator the same probe opened a
