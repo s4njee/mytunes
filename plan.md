@@ -317,6 +317,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC1: Functions for tracks (sorted by any column, filtered by FTS query, returning ordered id lists for view snapshots), albums (grouped by album_artist + album, compilation aware → "Various Artists"), artists, genres, composers, playlist contents 🧪.
   - AC2: Sort uses `sort_*` fields when present and ignores a leading "The " for artist sort (classic jukebox behaviour). Collation is Unicode-aware (ICU via `icu_collator`, registered as a SQLite collation) 🧪.
   - AC3: Building a 50k-track ordered snapshot takes < 60 ms, and fetching a 200-row page by id list takes < 5 ms (bench) 🧪.
+  - _Status 2026-11-19: Implemented the typed desktop query layer and V2 sort indexes. Local release medians on Linux were ≤ 19.78 ms for 50k-track snapshots across all 32 sort cases and 0.41 ms for a 200-row page. The benchmark is wired into Linux CI. Cross-platform CI is pending. See ADR-0008._
 - [ ] **E2.S3 Device schema.** As the phone, I want a slim schema so that the phone DB stays small and fast.
   - AC1: The device schema from §3.2 is created by its own migration chain 🧪.
   - AC2: The `events` table is append-only and has an `acked` flag. `state` is a key-value table for resume and settings 🧪.

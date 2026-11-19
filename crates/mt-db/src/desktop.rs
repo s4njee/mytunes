@@ -3,7 +3,10 @@ use std::time::Duration;
 
 use rusqlite::{Connection, OpenFlags, TransactionBehavior};
 
-const MIGRATIONS: &[(u32, &str)] = &[(1, include_str!("../migrations/desktop/V1.sql"))];
+const MIGRATIONS: &[(u32, &str)] = &[
+    (1, include_str!("../migrations/desktop/V1.sql")),
+    (2, include_str!("../migrations/desktop/V2.sql")),
+];
 
 /// The most recent desktop library schema this release can open.
 pub const DESKTOP_SCHEMA_VERSION: u32 = MIGRATIONS[MIGRATIONS.len() - 1].0;
@@ -25,6 +28,9 @@ pub enum DbError {
         /// The journal mode SQLite selected.
         mode: String,
     },
+    /// The bundled ICU collation could not be initialized.
+    #[error("desktop library ICU collation error: {0}")]
+    Collation(String),
     /// SQLite reported an error while opening, configuring, or migrating the file.
     #[error("desktop library SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
@@ -45,6 +51,7 @@ pub fn open_desktop(path: impl AsRef<Path>) -> Result<Connection, DbError> {
     db.busy_timeout(Duration::from_secs(5))?;
 
     let current = supported_schema_version(&db)?;
+    crate::collation::register(&db)?;
     db.pragma_update(None, "foreign_keys", true)?;
     // SQLite only fires delete triggers for rows removed by REPLACE when
     // recursive triggers are enabled. The FTS index needs those deletes.
