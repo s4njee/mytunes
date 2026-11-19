@@ -368,6 +368,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC2: Event stream emits state changes immediately and position at 4 Hz. Track end auto-advances to the next queue item (not loop) 🧪.
   - AC3: Shuffle (songs / albums) and repeat (off / one / all) modes on the queue 🧪.
   - AC4: `mt-cli play <folder>` plays a folder gaplessly with `--eq 3,1,-2,4,2` (manual test, documented).
+  - _Status 2026-11-19: The shared player implements transport, events, shuffle and repeat. Linux CLI scan, rescan, and gapless playback with EQ pass against an ALSA null device. Hosted CI is pending. See ADR-0017._
 - [ ] **E4.S5 UI sound-effect channel.** As a wheel user, I want click sounds with no latency so that the wheel feels mechanical.
   - AC1: `play_sfx(Click)` mixes a ≤ 15 ms synthesized click into the output within one callback period (< 10 ms at 48 kHz/256 frames).
   - AC2: Works when music is paused (the stream stays open while the app is in the foreground). Respects the system silent switch on iOS (ambient behaviour for sfx).

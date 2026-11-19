@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, Sample, SampleFormat, SizedSample};
 use ringbuf::traits::{Consumer, Producer, Split};
-use ringbuf::{HeapCons, HeapRb};
+use ringbuf::{HeapCons, HeapProd, HeapRb};
 
 use crate::{AudioQueue, AudioSpec, Dsp, DspError, DspSettings, RenderError};
 
@@ -80,37 +80,12 @@ pub fn play_queue_with_dsp(
     gapless: bool,
     settings: DspSettings,
 ) -> Result<u64, OutputError> {
-    let device = cpal::default_host()
-        .default_output_device()
-        .ok_or(OutputError::NoDevice)?;
-    let supported = device.default_output_config()?;
-    let native_format = supported.sample_format();
-    let config = supported.config();
-    let spec = AudioSpec {
-        sample_rate: config.sample_rate,
-        channels: usize::from(config.channels),
-    };
+    let mut output = DeviceOutput::open()?;
+    let spec = output.spec;
     let mut queue = AudioQueue::open(paths, spec, position_ms, gapless)?;
     let mut effects = Dsp::new(spec, settings, queue.initial_replay_gain())?;
     let mut processed = Vec::new();
 
-    let (mut producer, consumer) = ring(spec).split();
-    let state = Arc::new(CallbackState::default());
-    let stream = match native_format {
-        SampleFormat::F32 => build_stream::<f32>(&device, config, consumer, state.clone()),
-        SampleFormat::F64 => build_stream::<f64>(&device, config, consumer, state.clone()),
-        SampleFormat::I8 => build_stream::<i8>(&device, config, consumer, state.clone()),
-        SampleFormat::I16 => build_stream::<i16>(&device, config, consumer, state.clone()),
-        SampleFormat::I24 => build_stream::<cpal::I24>(&device, config, consumer, state.clone()),
-        SampleFormat::I32 => build_stream::<i32>(&device, config, consumer, state.clone()),
-        SampleFormat::I64 => build_stream::<i64>(&device, config, consumer, state.clone()),
-        SampleFormat::U8 => build_stream::<u8>(&device, config, consumer, state.clone()),
-        SampleFormat::U16 => build_stream::<u16>(&device, config, consumer, state.clone()),
-        SampleFormat::U24 => build_stream::<cpal::U24>(&device, config, consumer, state.clone()),
-        SampleFormat::U32 => build_stream::<u32>(&device, config, consumer, state.clone()),
-        SampleFormat::U64 => build_stream::<u64>(&device, config, consumer, state.clone()),
-        _ => return Err(OutputError::SampleFormat(native_format)),
-    }?;
     let mut total = 0;
     let mut started = false;
     let mut watchdog = PlaybackWatchdog::new();
@@ -121,41 +96,154 @@ pub fn play_queue_with_dsp(
         effects.process(&mut processed)?;
         let mut remaining = processed.as_slice();
         while !remaining.is_empty() {
-            let written = producer.push_slice(remaining);
+            let written = output.push(remaining) * spec.channels;
             total += (written / spec.channels) as u64;
             remaining = &remaining[written..];
             if remaining.is_empty() {
                 break;
             }
             if !started {
-                stream.play()?;
+                output.set_playing(true);
+                output.start()?;
                 started = true;
                 watchdog = PlaybackWatchdog::new();
             }
-            watchdog.wait(&state)?;
+            watchdog.wait(&output.state)?;
         }
     }
     if total == 0 {
         return Ok(0);
     }
     if !started {
-        stream.play()?;
+        output.set_playing(true);
+        output.start()?;
         watchdog = PlaybackWatchdog::new();
     }
-    while state.delivered.load(Ordering::Acquire) < total {
-        watchdog.wait(&state)?;
+    while output.delivered() < total {
+        watchdog.wait(&output.state)?;
     }
 
     // Callback delivery precedes device presentation. Keep the stream alive
     // through the last nonempty buffer's reported presentation time.
-    thread::sleep(Duration::from_nanos(
-        state.pending_ns.load(Ordering::Relaxed),
-    ));
+    thread::sleep(output.tail());
     Ok(total)
+}
+
+pub(crate) struct DeviceOutput {
+    stream: cpal::Stream,
+    producer: HeapProd<f32>,
+    state: Arc<CallbackState>,
+    pub(crate) spec: AudioSpec,
+}
+
+pub(crate) trait PlaybackOutput {
+    fn spec(&self) -> AudioSpec;
+    fn push(&mut self, samples: &[f32]) -> usize;
+    fn delivered(&self) -> u64;
+    fn tail(&self) -> Duration;
+    fn failed(&self) -> bool;
+    fn set_playing(&self, playing: bool);
+    fn flush(&mut self) -> Result<u64, OutputError>;
+}
+
+impl DeviceOutput {
+    pub(crate) fn open() -> Result<Self, OutputError> {
+        let device = cpal::default_host()
+            .default_output_device()
+            .ok_or(OutputError::NoDevice)?;
+        let supported = device.default_output_config()?;
+        let native_format = supported.sample_format();
+        let config = supported.config();
+        let spec = AudioSpec {
+            sample_rate: config.sample_rate,
+            channels: usize::from(config.channels),
+        };
+        if !(8_000..=768_000).contains(&spec.sample_rate) || !(1..=32).contains(&spec.channels) {
+            return Err(RenderError::InvalidOutput.into());
+        }
+        let (producer, consumer) = ring(spec).split();
+        let state = Arc::new(CallbackState::default());
+        let stream = match native_format {
+            SampleFormat::F32 => build_stream::<f32>(&device, config, consumer, state.clone()),
+            SampleFormat::F64 => build_stream::<f64>(&device, config, consumer, state.clone()),
+            SampleFormat::I8 => build_stream::<i8>(&device, config, consumer, state.clone()),
+            SampleFormat::I16 => build_stream::<i16>(&device, config, consumer, state.clone()),
+            SampleFormat::I24 => {
+                build_stream::<cpal::I24>(&device, config, consumer, state.clone())
+            }
+            SampleFormat::I32 => build_stream::<i32>(&device, config, consumer, state.clone()),
+            SampleFormat::I64 => build_stream::<i64>(&device, config, consumer, state.clone()),
+            SampleFormat::U8 => build_stream::<u8>(&device, config, consumer, state.clone()),
+            SampleFormat::U16 => build_stream::<u16>(&device, config, consumer, state.clone()),
+            SampleFormat::U24 => {
+                build_stream::<cpal::U24>(&device, config, consumer, state.clone())
+            }
+            SampleFormat::U32 => build_stream::<u32>(&device, config, consumer, state.clone()),
+            SampleFormat::U64 => build_stream::<u64>(&device, config, consumer, state.clone()),
+            _ => return Err(OutputError::SampleFormat(native_format)),
+        }?;
+        Ok(Self {
+            stream,
+            producer,
+            state,
+            spec,
+        })
+    }
+
+    pub(crate) fn start(&self) -> Result<(), OutputError> {
+        self.stream.play()?;
+        Ok(())
+    }
+}
+
+impl PlaybackOutput for DeviceOutput {
+    fn spec(&self) -> AudioSpec {
+        self.spec
+    }
+
+    fn push(&mut self, samples: &[f32]) -> usize {
+        self.producer.push_slice(samples) / self.spec.channels
+    }
+
+    fn delivered(&self) -> u64 {
+        self.state.delivered.load(Ordering::Acquire)
+    }
+
+    fn tail(&self) -> Duration {
+        Duration::from_nanos(self.state.pending_ns.load(Ordering::Relaxed))
+    }
+
+    fn failed(&self) -> bool {
+        self.state.failed.load(Ordering::Relaxed)
+    }
+
+    fn set_playing(&self, playing: bool) {
+        self.state.playing.store(playing, Ordering::Release);
+    }
+
+    fn flush(&mut self) -> Result<u64, OutputError> {
+        self.set_playing(false);
+        let epoch = self
+            .state
+            .reset
+            .fetch_add(1, Ordering::Release)
+            .wrapping_add(1);
+        let deadline = Instant::now() + STALL_TIMEOUT;
+        while self.state.reset_ack.load(Ordering::Acquire) != epoch {
+            if self.failed() || Instant::now() >= deadline {
+                return Err(OutputError::Stalled);
+            }
+            thread::sleep(POLL_INTERVAL);
+        }
+        Ok(self.delivered())
+    }
 }
 
 #[derive(Default)]
 struct CallbackState {
+    playing: AtomicBool,
+    reset: AtomicU64,
+    reset_ack: AtomicU64,
     delivered: AtomicU64,
     pending_ns: AtomicU64,
     failed: AtomicBool,
@@ -202,10 +290,22 @@ fn build_stream<T: SizedSample + FromSample<f32>>(
     let channels = usize::from(config.channels);
     let rate = u64::from(config.sample_rate);
     let on_error = state.clone();
+    let mut reset = 0;
     device.build_output_stream::<T, _, _>(
         config,
         move |output, info| {
             assert_no_alloc::assert_no_alloc(|| {
+                let requested = state.reset.load(Ordering::Acquire);
+                if requested != reset {
+                    consumer.clear();
+                    reset = requested;
+                    state.pending_ns.store(0, Ordering::Relaxed);
+                    state.reset_ack.store(reset, Ordering::Release);
+                }
+                if !state.playing.load(Ordering::Acquire) {
+                    output.fill(T::EQUILIBRIUM);
+                    return;
+                }
                 let samples = fill_output(&mut consumer, output, channels);
                 if samples != 0 {
                     let frames = (samples / channels) as u64;

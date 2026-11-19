@@ -83,7 +83,7 @@ jobs:
               }
           }
           EOF
-          ALSA_CONFIG_PATH="$alsa_config" cargo test --locked -p mt-audio --test device -- --ignored
+          ALSA_CONFIG_PATH="$alsa_config" cargo test --locked -p mt-audio --test device -- --ignored --test-threads=1
 
   desktop:
     name: Desktop app (${{ matrix.os }})

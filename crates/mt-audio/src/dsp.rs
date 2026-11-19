@@ -246,7 +246,7 @@ impl Dsp {
     }
 }
 
-fn validate(settings: DspSettings) -> Result<(), DspError> {
+pub(crate) fn validate(settings: DspSettings) -> Result<(), DspError> {
     if settings.eq_db.iter().all(|gain| (-6..=6).contains(gain))
         && (0.0..=1.0).contains(&settings.volume)
         && (0.0..=1.0).contains(&settings.volume_limit)

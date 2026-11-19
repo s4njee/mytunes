@@ -65,3 +65,38 @@ fn plays_a_gapless_pair_through_one_cpal_stream() {
         );
     }
 }
+
+#[test]
+#[ignore = "requires a CPAL playback device and generated audio fixtures"]
+fn shared_player_emits_track_boundaries_through_cpal() {
+    use mt_audio::{Player, PlayerState, QueueItem};
+    use mt_types::TrackId;
+    use std::time::Duration;
+
+    let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/audio/generated");
+    let player = Player::new().unwrap();
+    let events = player.events().unwrap();
+    let pair = ["a", "b"]
+        .into_iter()
+        .map(|id| QueueItem {
+            id: TrackId(id.into()),
+            path: fixture_root.join(format!("gapless_{id}.flac")),
+            album: Some("Gapless".into()),
+        })
+        .collect();
+    player.load_queue(pair, 0).unwrap();
+    player.seek(123).unwrap();
+    player.play().unwrap();
+    let mut ended = Vec::new();
+    loop {
+        let event = events.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert!(event.error.is_none(), "{event:?}");
+        if event.ended {
+            ended.push(event.track_id.unwrap());
+        }
+        if event.state == PlayerState::Ended {
+            break;
+        }
+    }
+    assert_eq!(ended, [TrackId("a".into()), TrackId("b".into())]);
+}

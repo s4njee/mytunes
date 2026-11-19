@@ -2,6 +2,8 @@
 
 mod tracks;
 
+use std::path::{Path, PathBuf};
+
 use mt_types::{PlaylistId, TrackId};
 use rusqlite::{Connection, Row};
 
@@ -100,6 +102,40 @@ impl<'db> LibraryQueries<'db> {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
+    /// Lists available tracks under a canonical folder in album and disc order.
+    ///
+    /// The path comparison uses components, so sibling folders with similar
+    /// names are excluded. Within releases tracks sort by disc and track tag,
+    /// with the path breaking ties and ordering untagged files.
+    pub fn folder_tracks(&self, root: &Path) -> Result<Vec<FolderTrack>, QueryError> {
+        let sql = format!(
+            "SELECT id, file_path, title,
+                    CASE WHEN trim(album) <> '' THEN
+                        json_array(album, {ALBUM_DISPLAY_ARTIST}, year, compilation)
+                    END
+             FROM tracks WHERE missing = 0
+             ORDER BY {album_sort}, {group_sort}, year, album, {ALBUM_DISPLAY_ARTIST},
+                      compilation, disc_no, track_no, file_path",
+            album_sort = tracks::ALBUM_SORT,
+            group_sort = tracks::ALBUM_GROUP_SORT,
+        );
+        let mut statement = self.db.prepare(&sql)?;
+        let mut rows = statement.query([])?;
+        let mut found = Vec::new();
+        while let Some(row) = rows.next()? {
+            let path = PathBuf::from(row.get::<_, String>(1)?);
+            if path != root && path.starts_with(root) {
+                found.push(FolderTrack {
+                    id: read_track_id(row)?,
+                    path,
+                    title: row.get(2)?,
+                    album_key: row.get(3)?,
+                });
+            }
+        }
+        Ok(found)
+    }
+
     /// Returns stored playlist members in position order, including repeated tracks.
     pub fn playlist_track_ids(&self, playlist: &PlaylistId) -> Result<Vec<TrackId>, QueryError> {
         let mut statement = self.db.prepare_cached(
@@ -112,6 +148,19 @@ impl<'db> LibraryQueries<'db> {
 
 fn read_track_id(row: &Row<'_>) -> rusqlite::Result<TrackId> {
     Ok(TrackId(row.get(0)?))
+}
+
+/// A local file and its playback grouping from the desktop library.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FolderTrack {
+    /// Stable library track identifier.
+    pub id: TrackId,
+    /// Local file path.
+    pub path: PathBuf,
+    /// Track title, if known.
+    pub title: Option<String>,
+    /// Opaque album identity shared by tracks in the same release.
+    pub album_key: Option<String>,
 }
 
 /// One album grouping in the library browser.

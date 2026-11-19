@@ -111,3 +111,16 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 Fonts bundled in the apps (IBM Plex Sans, JetBrains Mono) are under the SIL Open Font License 1.1.
 
 MyTunes is an independent project. It is not affiliated with, or endorsed by, Apple Inc.
+
+### Scan and play from the command line
+
+```sh
+cargo run -p mt-cli -- scan /path/to/album --db /path/to/library.sqlite
+cargo run -p mt-cli -- play /path/to/album --eq 3,1,-2,4,2
+```
+
+`scan` creates or updates a desktop library. It defaults to
+`library.sqlite` in the current directory. `play` scans into a temporary
+library, orders tracks by album, disc, and track number, and uses the
+default playback device. EQ gains are in decibels for the 60, 230, 910,
+3,600, and 14,000 Hz bands, in that order.

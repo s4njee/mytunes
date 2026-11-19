@@ -1,0 +1,17 @@
+[package]
+name = "mt-cli"
+description = "Command-line folder import and playback for MyTunes."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+mt-audio.workspace = true
+mt-db.workspace = true
+tempfile = "=3.27.0"
+
+[lints]
+workspace = true
