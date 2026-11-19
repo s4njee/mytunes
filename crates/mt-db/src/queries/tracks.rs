@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 
-use mt_types::TrackId;
+use mt_types::{PlaylistId, TrackId};
 use rusqlite::Row;
+use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use super::{LibraryQueries, QueryError, read_track_id};
 
@@ -19,7 +21,8 @@ pub(super) const ALBUM_GROUP_SORT: &str = "(CASE WHEN tracks.compilation THEN 'V
                   nullif(tracks.sort_artist, ''), mytunes_artist_v1(tracks.artist)) END) COLLATE mytunes_unicode_v1";
 
 /// A column users can sort the track list by.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[serde(rename_all = "snake_case")]
 pub enum TrackColumn {
     /// Whether the track is selected for sync.
     Checked,
@@ -57,7 +60,8 @@ pub enum TrackColumn {
 }
 
 /// Direction of a track sort.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[serde(rename_all = "snake_case")]
 pub enum SortDirection {
     /// Lowest or earliest values first.
     #[default]
@@ -76,7 +80,8 @@ impl SortDirection {
 }
 
 /// Column and direction to use when constructing a track snapshot.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
+#[serde(rename_all = "snake_case")]
 pub struct TrackSort {
     /// User-visible sort column.
     pub column: TrackColumn,
@@ -148,8 +153,21 @@ impl<'a> TrackSearch<'a> {
     }
 }
 
+/// Optional exact filters for a desktop track snapshot.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct TrackFilter<'a> {
+    /// Limit membership to this manual playlist, preserving repeated picks.
+    pub playlist: Option<&'a PlaylistId>,
+    /// Genre shown in the column browser.
+    pub genre: Option<&'a str>,
+    /// Track artist or the compilation group `Various Artists`.
+    pub artist: Option<&'a str>,
+    /// Album title shown in the column browser.
+    pub album: Option<&'a str>,
+}
+
 /// Metadata needed to render one row in the desktop track list.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Type)]
 pub struct TrackRow {
     /// Stable public track identifier.
     pub id: TrackId,
@@ -160,6 +178,7 @@ pub struct TrackRow {
     /// Track title.
     pub title: Option<String>,
     /// Playback duration in milliseconds.
+    #[specta(type = Option<specta_typescript::Number>)]
     pub duration_ms: Option<i64>,
     /// Tagged track artist.
     pub artist: Option<String>,
@@ -172,24 +191,33 @@ pub struct TrackRow {
     /// Composer tag.
     pub composer: Option<String>,
     /// Release year.
+    #[specta(type = Option<specta_typescript::Number>)]
     pub year: Option<i64>,
     /// Disc position within the album.
+    #[specta(type = Option<specta_typescript::Number>)]
     pub disc_no: Option<i64>,
     /// Track position on the disc.
+    #[specta(type = Option<specta_typescript::Number>)]
     pub track_no: Option<i64>,
     /// Rating on a 0–100 scale.
+    #[specta(type = specta_typescript::Number)]
     pub rating: i64,
     /// Number of completed plays.
+    #[specta(type = specta_typescript::Number)]
     pub play_count: i64,
     /// When the track was last played.
+    #[specta(type = Option<specta_typescript::Number>)]
     pub last_played_at: Option<i64>,
     /// When the track was added to the library.
+    #[specta(type = Option<specta_typescript::Number>)]
     pub date_added: Option<i64>,
     /// Audio codec.
     pub codec: Option<String>,
     /// Stored bitrate.
+    #[specta(type = Option<specta_typescript::Number>)]
     pub bitrate: Option<i64>,
     /// File size in bytes.
+    #[specta(type = Option<specta_typescript::Number>)]
     pub size_bytes: Option<i64>,
     /// Associated artwork identifier.
     pub artwork_id: Option<String>,
@@ -230,19 +258,54 @@ impl LibraryQueries<'_> {
         sort: TrackSort,
         search: TrackSearch<'_>,
     ) -> Result<Vec<TrackId>, QueryError> {
+        self.track_ids_in(Some(sort), search, TrackFilter::default())
+    }
+
+    /// Builds an ordered ID snapshot for the given source and exact filters.
+    /// A playlist with no explicit sort uses its stored position order.
+    pub fn track_ids_in(
+        &self,
+        sort: Option<TrackSort>,
+        search: TrackSearch<'_>,
+        filter: TrackFilter<'_>,
+    ) -> Result<Vec<TrackId>, QueryError> {
+        let mut sql = String::from("SELECT tracks.id FROM tracks");
+        if filter.playlist.is_some() {
+            sql.push_str(" JOIN playlist_items ON playlist_items.track_id = tracks.id");
+        }
         let expression = search.expression();
-        let source = if expression.is_some() {
-            "tracks_fts JOIN tracks ON tracks.rowid = tracks_fts.rowid WHERE tracks_fts MATCH ?1"
+        if expression.is_some() {
+            sql.push_str(" JOIN tracks_fts ON tracks.rowid = tracks_fts.rowid");
+        }
+
+        let mut args = Vec::new();
+        for (condition, value) in [
+            ("tracks_fts MATCH ?", expression.as_deref()),
+            (
+                "playlist_items.playlist_id = ?",
+                filter.playlist.map(|id| id.0.as_str()),
+            ),
+            ("tracks.genre = ?", filter.genre),
+            (
+                "(CASE WHEN tracks.compilation THEN 'Various Artists' ELSE tracks.artist END) = ?",
+                filter.artist,
+            ),
+            ("tracks.album = ?", filter.album),
+        ] {
+            if let Some(value) = value {
+                sql.push_str(if args.is_empty() { " WHERE " } else { " AND " });
+                sql.push_str(condition);
+                args.push(value);
+            }
+        }
+        sql.push_str(" ORDER BY ");
+        if sort.is_none() && filter.playlist.is_some() {
+            sql.push_str("playlist_items.position");
         } else {
-            "tracks"
-        };
-        let sql = format!(
-            "SELECT tracks.id FROM {source} ORDER BY {}",
-            sort.order_by()
-        );
+            sql.push_str(&sort.unwrap_or_default().order_by());
+        }
         let mut statement = self.db.prepare_cached(&sql)?;
-        let rows =
-            statement.query_map(rusqlite::params_from_iter(expression.iter()), read_track_id)?;
+        let rows = statement.query_map(rusqlite::params_from_iter(args), read_track_id)?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 

@@ -72,7 +72,8 @@ impl Default for PlayerFlags {
 }
 
 /// Transport state visible to either UI.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
 pub enum PlayerState {
     /// No queue has been loaded.
     Empty,
@@ -87,11 +88,12 @@ pub enum PlayerState {
 }
 
 /// Snapshot emitted on changes and at 4 Hz during playback.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, specta::Type)]
 pub struct PlayerEvent {
     /// Playback state.
     pub state: PlayerState,
     /// Offset of the audible track in milliseconds.
+    #[specta(type = specta_typescript::Number)]
     pub position_ms: u64,
     /// Identifier of the track described by this event.
     pub track_id: Option<TrackId>,

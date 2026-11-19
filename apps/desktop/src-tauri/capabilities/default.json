@@ -1,7 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the main window. Keep this least-privilege (plan.md §3.5).",
+  "description": "Permissions used by the main library window.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "allow-ping",
+    "allow-view-open",
+    "allow-view-rows",
+    "allow-subscribe-player",
+    "allow-subscribe-scan",
+    "allow-subscribe-sync",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
 }

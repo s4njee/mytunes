@@ -17,13 +17,19 @@ tauri-build = { version = "=2.7.5", features = [] }
 
 [dependencies]
 mt-app.workspace = true
+mt-audio.workspace = true
+mt-meta.workspace = true
 mt-types.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 specta.workspace = true
 tauri = { version = "=2.12.6", features = [] }
 tauri-specta = { version = "=2.0.0-rc.29", features = ["derive", "typescript"] }
-specta-typescript = "=0.0.15"
+specta-typescript.workspace = true
+tempfile = "3"
+
+[dev-dependencies]
+mt-db.workspace = true
 
 [lints]
 workspace = true

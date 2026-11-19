@@ -3,6 +3,11 @@
 //! The Tauri command layer (`apps/desktop/src-tauri`) is a thin wrapper over
 //! the functions in this crate, so they can be unit-tested without a webview.
 
+pub mod library;
+
+pub use mt_db::ArtworkSize;
+pub use mt_db::queries::TrackRow;
+
 use mt_types::Pong;
 
 /// Connectivity check used by the desktop frontend.

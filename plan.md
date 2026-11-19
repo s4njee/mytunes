@@ -408,6 +408,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC1: Implements §3.5: tauri-specta bindings generated on build, `Channel`-based subscriptions (player, scan, sync), typed global events, the `view_open`/`view_rows` paging API, and the `mtart` artwork protocol with a single TS `artUrl(id, size)` helper that handles the Windows URL form 🧪 (Rust tests for commands; Vitest with `mockIPC` for adapters).
   - AC2: Capabilities file grants only the commands and plugin permissions actually used. The CSP from §3.5 is set. A test asserts that loading a remote URL is blocked (E2E).
   - AC3: Backend errors are a typed `AppError` enum serialized to TS as a discriminated union. Every command returns `Result<T, AppError>`.
+  - _Status 2026-11-19: Typed commands, channels, revision events, paged views, and the artwork protocol are in place. Linux Rust and frontend tests and the real-webview IPC and remote-content smoke test pass. Hosted CI is pending. See ADR-0020._
 - [ ] **E7.S2 Main window layout.** As a user, I want the classic layout so that it feels like the jukebox I remember.
   - AC1: Implements the approved mock: transport, volume, LCD status panel, search, source list, optional column browser, track table, status bar. The native window title bar is kept for v1.
   - AC2: Window size and position persist (Tauri `window-state` plugin). Split positions, visible columns and widths, and sort persist via backend settings 🧪.

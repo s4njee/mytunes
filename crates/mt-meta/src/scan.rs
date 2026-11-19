@@ -64,11 +64,13 @@ pub struct CachedTrack {
 }
 
 /// Current progress for a scan.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
 pub struct ScanProgress {
     /// Number of supported files processed, including unchanged or unreadable files.
+    #[specta(type = specta_typescript::Number)]
     pub scanned: usize,
     /// Number of supported paths discovered so far. Final once traversal completes.
+    #[specta(type = specta_typescript::Number)]
     pub total_estimate: usize,
     /// Most recently discovered or processed path.
     pub current_path: PathBuf,

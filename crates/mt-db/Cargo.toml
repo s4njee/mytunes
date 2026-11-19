@@ -12,8 +12,11 @@ publish.workspace = true
 icu_collator = "=2.4.0"
 mt-meta.workspace = true
 mt-types.workspace = true
-rusqlite = { version = "=0.43.0", features = ["bundled", "collation", "functions", "cache", "uuid"] }
+rusqlite = { workspace = true, features = ["bundled", "collation", "functions", "cache", "uuid"] }
+serde.workspace = true
 serde_json.workspace = true
+specta.workspace = true
+specta-typescript.workspace = true
 thiserror.workspace = true
 uuid = { version = "=1.29.3", features = ["v7"] }
 

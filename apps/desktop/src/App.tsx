@@ -8,7 +8,13 @@ export function App() {
 
   const ping = async () => {
     try {
-      const pong = await commands.ping();
+      const result = await commands.ping();
+      if (result.status === "error") {
+        setReply(null);
+        setError("The desktop core could not finish the request.");
+        return;
+      }
+      const pong = result.data;
       setReply(`${pong.message} (core ${pong.core_version})`);
       setError(null);
     } catch (e) {

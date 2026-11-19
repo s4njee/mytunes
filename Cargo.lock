@@ -2581,7 +2581,13 @@ dependencies = [
 name = "mt-app"
 version = "0.0.1"
 dependencies = [
+ "mt-db",
  "mt-types",
+ "rusqlite",
+ "serde",
+ "specta",
+ "tempfile",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -2601,6 +2607,9 @@ dependencies = [
  "rand",
  "ringbuf",
  "rubato",
+ "serde",
+ "specta",
+ "specta-typescript",
  "symphonia",
  "tempfile",
  "thiserror 2.0.21",
@@ -2626,7 +2635,10 @@ dependencies = [
  "mt-meta",
  "mt-types",
  "rusqlite",
+ "serde",
  "serde_json",
+ "specta",
+ "specta-typescript",
  "tempfile",
  "thiserror 2.0.21",
  "uuid",
@@ -2641,6 +2653,9 @@ dependencies = [
  "image",
  "lofty",
  "rayon",
+ "serde",
+ "specta",
+ "specta-typescript",
  "tempfile",
  "thiserror 2.0.21",
  "walkdir",
@@ -2704,6 +2719,9 @@ name = "mytunes-desktop"
 version = "0.0.1"
 dependencies = [
  "mt-app",
+ "mt-audio",
+ "mt-db",
+ "mt-meta",
  "mt-types",
  "serde",
  "serde_json",
@@ -2712,6 +2730,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-specta",
+ "tempfile",
 ]
 
 [[package]]

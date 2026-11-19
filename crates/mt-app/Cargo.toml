@@ -9,7 +9,15 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+mt-db.workspace = true
 mt-types.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+specta.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true
