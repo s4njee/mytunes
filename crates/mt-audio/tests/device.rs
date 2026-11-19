@@ -28,3 +28,28 @@ fn plays_the_generated_audio_formats_through_cpal() {
         assert!(frames > 0, "{name}");
     }
 }
+
+#[test]
+#[ignore = "requires a CPAL playback device and generated audio fixtures"]
+fn plays_a_gapless_pair_through_one_cpal_stream() {
+    use cpal::traits::{DeviceTrait, HostTrait};
+
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/audio/generated");
+    let rate = cpal::default_host()
+        .default_output_device()
+        .unwrap()
+        .default_output_config()
+        .unwrap()
+        .sample_rate();
+    for extension in ["flac", "mp3", "m4a"] {
+        let paths = [
+            fixtures.join(format!("gapless_a.{extension}")),
+            fixtures.join(format!("gapless_b.{extension}")),
+        ];
+        assert_eq!(
+            mt_audio::play_queue(&paths, 0, true).unwrap(),
+            6 * u64::from(rate),
+            "{extension}"
+        );
+    }
+}

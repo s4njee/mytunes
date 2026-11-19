@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
@@ -9,7 +9,7 @@ use cpal::{FromSample, Sample, SampleFormat, SizedSample};
 use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::{HeapCons, HeapRb};
 
-use crate::{AudioSpec, RenderError, RenderStream};
+use crate::{AudioQueue, AudioSpec, RenderError};
 
 #[cfg(debug_assertions)]
 #[global_allocator]
@@ -49,6 +49,18 @@ pub enum OutputError {
 /// Returns an error for invalid media or seek position, device setup failure,
 /// or an output stream that stops consuming samples.
 pub fn play_file(path: impl AsRef<Path>, position_ms: u64) -> Result<u64, OutputError> {
+    play_queue(&[path.as_ref().to_owned()], position_ms, true)
+}
+
+/// Play tracks in order through a single CPAL stream.
+///
+/// The caller feeds the device until the queue ends. The result counts
+/// frames consumed by the device, including the faded portions of transitions.
+///
+/// # Errors
+///
+/// Returns an error if a track or the output device fails.
+pub fn play_queue(paths: &[PathBuf], position_ms: u64, gapless: bool) -> Result<u64, OutputError> {
     let device = cpal::default_host()
         .default_output_device()
         .ok_or(OutputError::NoDevice)?;
@@ -59,10 +71,7 @@ pub fn play_file(path: impl AsRef<Path>, position_ms: u64) -> Result<u64, Output
         sample_rate: config.sample_rate,
         channels: usize::from(config.channels),
     };
-    let mut renderer = RenderStream::open(path, spec)?;
-    if position_ms != 0 {
-        renderer.seek(position_ms)?;
-    }
+    let mut queue = AudioQueue::open(paths, spec, position_ms, gapless)?;
 
     let (mut producer, consumer) = ring(spec).split();
     let state = Arc::new(CallbackState::default());
@@ -84,8 +93,8 @@ pub fn play_file(path: impl AsRef<Path>, position_ms: u64) -> Result<u64, Output
     let mut total = 0;
     let mut started = false;
     let mut watchdog = PlaybackWatchdog::new();
-    while let Some(samples) = renderer.next_samples()? {
-        let mut remaining = samples;
+    while let Some(block) = queue.next_block()? {
+        let mut remaining = block.samples;
         while !remaining.is_empty() {
             let written = producer.push_slice(remaining);
             total += (written / spec.channels) as u64;

@@ -356,6 +356,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC1: The gapless-pair fixture produces a continuous waveform: the sample at the boundary equals the expected sine value within 1e-4 🧪.
   - AC2: Encoder delay and padding are honoured for MP3 (LAME header) and AAC (iTunSMPB) 🧪.
   - AC3: If gapless is turned off, a 0 ms boundary with a 5 ms fade-out and fade-in is used instead of a click.
+  - _Status 2026-11-19: The streaming queue trims encoder delay and padding, preserves resampler history for matching rates, and supports 5 ms boundary fades. Local fixture and CPAL checks pass for FLAC, MP3, and AAC. Hosted CI is pending. See ADR-0015._
 - [ ] **E4.S3 DSP: EQ, volume, limit, Sound Check.** As a listener, I want EQ and volume normalization so that my music sounds the way I like.
   - AC1: 5-band peaking EQ at 60/230/910/3.6k/14k Hz, ±6 dB in 1 dB steps. A frequency response test with a sine sweep is within ±0.5 dB of the target 🧪.
   - AC2: Volume limit caps the output gain at a user-set max 🧪.

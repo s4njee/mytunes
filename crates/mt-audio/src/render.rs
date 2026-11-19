@@ -8,6 +8,15 @@ use crate::{AudioDecodeError, AudioDecoder, AudioSpec};
 /// Failure to decode or convert audio for an output device.
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
+    /// No tracks were supplied to the queue.
+    #[error("The playback queue is empty")]
+    EmptyQueue,
+    /// The next track's worker could not start.
+    #[error("Could not start the playback prefetch worker")]
+    PrefetchStart(#[source] std::io::Error),
+    /// The next track's worker did not return a result.
+    #[error("Could not prepare the next track")]
+    PrefetchFailed,
     /// The source file could not be decoded.
     #[error(transparent)]
     Decode(#[from] AudioDecodeError),
@@ -41,18 +50,7 @@ impl RenderStream {
     pub fn open(path: impl AsRef<Path>, output: AudioSpec) -> Result<Self, RenderError> {
         let decoder = AudioDecoder::open(path)?;
         let source = decoder.spec();
-        if !(8_000..=768_000).contains(&source.sample_rate)
-            || !(8_000..=768_000).contains(&output.sample_rate)
-            || !(1..=32).contains(&output.channels)
-        {
-            return Err(RenderError::InvalidOutput);
-        }
-
-        let converter = if source.sample_rate == output.sample_rate {
-            None
-        } else {
-            Some(RateConverter::new(source.sample_rate, output)?)
-        };
+        let converter = RateConverter::for_rates(source.sample_rate, output)?;
 
         Ok(Self {
             decoder,
@@ -88,7 +86,15 @@ impl RenderStream {
     pub fn next_samples(&mut self) -> Result<Option<&[f32]>, RenderError> {
         let source_channels = self.decoder.spec().channels;
         if let Some(converter) = &mut self.converter {
-            return converter.next_samples(&mut self.decoder);
+            let decoder = &mut self.decoder;
+            let output_channels = self.output.channels;
+            return converter.next_samples(|pending, _| {
+                let Some(samples) = decoder.next_samples()? else {
+                    return Ok(0);
+                };
+                mix_channels(samples, source_channels, output_channels, pending);
+                Ok(samples.len() / source_channels)
+            });
         }
         let Some(samples) = self.decoder.next_samples()? else {
             return Ok(None);
@@ -107,7 +113,7 @@ impl RenderStream {
     }
 }
 
-struct RateConverter {
+pub(crate) struct RateConverter {
     fft: Fft<f32>,
     output: AudioSpec,
     source_rate: u32,
@@ -121,6 +127,23 @@ struct RateConverter {
 }
 
 impl RateConverter {
+    pub(crate) fn for_rates(
+        source_rate: u32,
+        output: AudioSpec,
+    ) -> Result<Option<Self>, RenderError> {
+        if !(8_000..=768_000).contains(&source_rate)
+            || !(8_000..=768_000).contains(&output.sample_rate)
+            || !(1..=32).contains(&output.channels)
+        {
+            return Err(RenderError::InvalidOutput);
+        }
+        if source_rate == output.sample_rate {
+            Ok(None)
+        } else {
+            Self::new(source_rate, output).map(Some)
+        }
+    }
+
     fn new(source_rate: u32, output: AudioSpec) -> Result<Self, RenderError> {
         let fft = Fft::new(
             source_rate as usize,
@@ -152,25 +175,26 @@ impl RateConverter {
         self.exhausted = false;
     }
 
-    fn next_samples(&mut self, decoder: &mut AudioDecoder) -> Result<Option<&[f32]>, RenderError> {
+    pub(crate) fn next_samples(
+        &mut self,
+        mut read: impl FnMut(&mut Vec<f32>, u64) -> Result<usize, RenderError>,
+    ) -> Result<Option<&[f32]>, RenderError> {
         let channels = self.output.channels;
-        let source_channels = decoder.spec().channels;
         loop {
             let frames_in = self.fft.input_frames_next();
             let block_samples = frames_in * channels;
             while self.pending.len() < block_samples && !self.exhausted {
-                match decoder.next_samples()? {
-                    Some(samples) => {
-                        self.source_frames += (samples.len() / source_channels) as u64;
-                        mix_channels(samples, source_channels, channels, &mut self.pending);
-                    }
-                    None => self.exhausted = true,
-                }
+                let frames = read(&mut self.pending, self.source_frames)?;
+                self.source_frames += frames as u64;
+                self.exhausted = frames == 0;
             }
 
             let remaining = if self.exhausted {
-                let total = (u128::from(self.source_frames) * u128::from(self.output.sample_rate))
-                    .div_ceil(u128::from(self.source_rate));
+                let total = u128::from(output_frame(
+                    self.source_frames,
+                    self.source_rate,
+                    self.output.sample_rate,
+                ));
                 usize::try_from(total.saturating_sub(u128::from(self.delivered)))
                     .unwrap_or(usize::MAX)
             } else {
@@ -207,7 +231,13 @@ impl RateConverter {
     }
 }
 
-fn mix_channels(input: &[f32], source: usize, target: usize, out: &mut Vec<f32>) {
+pub(crate) fn output_frame(source_frame: u64, source_rate: u32, output_rate: u32) -> u64 {
+    let scaled =
+        (u128::from(source_frame) * u128::from(output_rate)).div_ceil(u128::from(source_rate));
+    u64::try_from(scaled).unwrap_or(u64::MAX)
+}
+
+pub(crate) fn mix_channels(input: &[f32], source: usize, target: usize, out: &mut Vec<f32>) {
     if source == target {
         out.extend_from_slice(input);
         return;

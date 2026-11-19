@@ -3,13 +3,15 @@ use std::path::{Path, PathBuf};
 
 use symphonia::core::codecs::audio::{
     AudioCodecParameters, AudioDecoder as SymphoniaDecoder, AudioDecoderOptions,
-    well_known::CODEC_ID_OPUS,
+    well_known::{CODEC_ID_AAC, CODEC_ID_OPUS},
 };
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo, probe::Hint};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::units::{Duration, Time, TimeBase, Timestamp};
+
+use crate::mp4_timing::{PlaybackWindow, aac_window};
 
 /// Sample rate and channel count of interleaved PCM.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,7 +69,9 @@ pub struct AudioDecoder {
     spec: AudioSpec,
     time_base: TimeBase,
     start: Timestamp,
+    media_start: Timestamp,
     duration_ms: Option<u64>,
+    window: Option<PlaybackWindow>,
     seek_target: Option<Timestamp>,
     packet_samples: Vec<f32>,
 }
@@ -90,7 +94,7 @@ impl AudioDecoder {
         if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
             hint.with_extension(extension);
         }
-        let container = symphonia::default::get_probe().probe(
+        let mut container = symphonia::default::get_probe().probe(
             &hint,
             stream,
             FormatOptions::default(),
@@ -143,15 +147,40 @@ impl AudioDecoder {
             .time_base
             .or_else(|| TimeBase::try_from_recip(sample_rate))
             .ok_or(AudioDecodeError::UnsupportedSpec)?;
+        let track_id = track.id;
+        let audio_start = track.start_ts;
+        let duration_ms = track
+            .duration
+            .and_then(|ticks| time_base.calc_duration(ticks))
+            .and_then(|duration| u64::try_from(duration.as_millis()).ok());
+        let window = if params.codec == CODEC_ID_AAC {
+            File::open(path).ok().and_then(|file| {
+                aac_window(file, track_id, sample_rate, container.metadata().current())
+            })
+        } else {
+            None
+        };
+        let start = window
+            .and_then(|window| {
+                time_base.calc_timestamp(
+                    TimeBase::try_from_recip(sample_rate)?
+                        .calc_duration(Duration::from(window.start))?,
+                )
+            })
+            .map_or(audio_start, |offset| {
+                Timestamp::new(audio_start.get().saturating_add(offset.get()))
+            });
+        let duration_ms = window
+            .map(|window| (u128::from(window.frames) * 1_000 / u128::from(sample_rate)) as u64)
+            .or(duration_ms);
         Ok(Self {
             path: path.to_owned(),
             exhausted: false,
-            track_id: track.id,
-            start: track.start_ts,
-            duration_ms: track
-                .duration
-                .and_then(|ticks| time_base.calc_duration(ticks))
-                .and_then(|duration| u64::try_from(duration.as_millis()).ok()),
+            track_id,
+            start,
+            media_start: audio_start,
+            duration_ms,
+            window,
             container,
             codec,
             spec,
@@ -197,7 +226,11 @@ impl AudioDecoder {
         let at = self.timestamp(position_ms)?;
         // Recent packets warm up codecs with decoder state such as an MP3
         // bit reservoir or the Opus seek preroll.
-        let preroll = self.timestamp(position_ms.saturating_sub(100))?;
+        let preroll = if position_ms < 100 {
+            self.media_start
+        } else {
+            self.timestamp(position_ms - 100)?
+        };
         self.container.seek(
             SeekMode::Accurate,
             SeekTo::Timestamp {
@@ -298,7 +331,32 @@ impl AudioDecoder {
                     end = end.max(start);
                 }
             }
-            if let Some(target) = self.seek_target
+            if let Some(window) = self.window {
+                let packet_frame =
+                    i128::from(packet.pts.get()) - i128::from(self.media_start.get());
+                let packet_frame = packet_frame
+                    * i128::from(self.time_base.numer.get())
+                    * i128::from(self.spec.sample_rate)
+                    / i128::from(self.time_base.denom.get());
+                let requested = self
+                    .seek_target
+                    .and_then(|target| target.duration_from(self.start))
+                    .map_or(0, |ticks| {
+                        duration_frames(ticks, self.time_base, self.spec.sample_rate)
+                    });
+                let first = i128::from(window.start) + requested as i128;
+                let last = i128::from(window.start) + i128::from(window.frames);
+                let offset = |frame: i128| {
+                    usize::try_from((frame - packet_frame).max(0))
+                        .unwrap_or(usize::MAX)
+                        .saturating_mul(self.spec.channels)
+                };
+                start = start.max(offset(first)).min(end);
+                end = end.min(offset(last));
+                if packet_frame >= last {
+                    break;
+                }
+            } else if let Some(target) = self.seek_target
                 && let Some(before) = target.duration_from(packet.pts)
             {
                 let skip = duration_frames(before, self.time_base, self.spec.sample_rate);
