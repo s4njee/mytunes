@@ -8,6 +8,7 @@ use mt_types::TrackId;
 
 use crate::output::{DeviceOutput, PlaybackOutput};
 use crate::play_order::PlayOrder;
+use crate::sfx::{ClickRequest, Sfx, SfxError, SoundEffect};
 use crate::{AudioQueue, Dsp, DspError, DspSettings, OutputError, RenderError, SoundCheck};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(250);
@@ -152,6 +153,7 @@ type Request = (Command, Sender<Result<(), PlayerError>>);
 pub struct Player {
     requests: Sender<Request>,
     worker: Option<JoinHandle<()>>,
+    sfx: Sfx,
 }
 
 impl Player {
@@ -161,11 +163,13 @@ impl Player {
     ///
     /// Returns an error if the worker or output device cannot start.
     pub fn new() -> Result<Self, PlayerError> {
+        let sfx = Sfx::new();
+        let click = sfx.click_request();
         let (requests, rx) = mpsc::channel();
         let (ready, initialized) = mpsc::sync_channel(1);
         let worker = thread::Builder::new()
             .name("mt-audio-player".into())
-            .spawn(move || match start_transport() {
+            .spawn(move || match start_transport(click) {
                 Ok(transport) => {
                     if ready.send(Ok(())).is_ok() {
                         transport.run(rx);
@@ -180,6 +184,7 @@ impl Player {
             Ok(Ok(())) => Ok(Self {
                 requests,
                 worker: Some(worker),
+                sfx,
             }),
             result => {
                 let _ = worker.join();
@@ -251,6 +256,15 @@ impl Player {
         self.request(Command::Repeat(repeat))
     }
 
+    /// Request a UI sound immediately, including while music is paused.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the platform cannot play the effect.
+    pub fn play_sfx(&self, effect: SoundEffect) -> Result<(), SfxError> {
+        self.sfx.play(effect)
+    }
+
     /// Subscribe to player events, beginning with the current snapshot.
     pub fn events(&self) -> Result<Receiver<PlayerEvent>, PlayerError> {
         let (tx, events) = mpsc::channel();
@@ -313,8 +327,8 @@ struct Transport<T> {
     last_delivery: (u64, Instant),
 }
 
-fn start_transport() -> Result<Transport<DeviceOutput>, PlayerError> {
-    let device = DeviceOutput::open()?;
+fn start_transport(click: Option<ClickRequest>) -> Result<Transport<DeviceOutput>, PlayerError> {
+    let device = DeviceOutput::with_click(click)?;
     device.start()?;
     Transport::new(device)
 }

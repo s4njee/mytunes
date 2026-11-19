@@ -69,7 +69,7 @@ fn plays_a_gapless_pair_through_one_cpal_stream() {
 #[test]
 #[ignore = "requires a CPAL playback device and generated audio fixtures"]
 fn shared_player_emits_track_boundaries_through_cpal() {
-    use mt_audio::{Player, PlayerState, QueueItem};
+    use mt_audio::{Player, PlayerState, QueueItem, SoundEffect};
     use mt_types::TrackId;
     use std::time::Duration;
 
@@ -86,6 +86,7 @@ fn shared_player_emits_track_boundaries_through_cpal() {
         .collect();
     player.load_queue(pair, 0).unwrap();
     player.seek(123).unwrap();
+    player.play_sfx(SoundEffect::Click).unwrap();
     player.play().unwrap();
     let mut ended = Vec::new();
     loop {

@@ -9,6 +9,7 @@ use cpal::{FromSample, Sample, SampleFormat, SizedSample};
 use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::{HeapCons, HeapProd, HeapRb};
 
+use crate::sfx::{ClickMixer, ClickRequest};
 use crate::{AudioQueue, AudioSpec, Dsp, DspError, DspSettings, RenderError};
 
 #[cfg(debug_assertions)]
@@ -148,6 +149,10 @@ pub(crate) trait PlaybackOutput {
 
 impl DeviceOutput {
     pub(crate) fn open() -> Result<Self, OutputError> {
+        Self::with_click(None)
+    }
+
+    pub(crate) fn with_click(click: Option<ClickRequest>) -> Result<Self, OutputError> {
         let device = cpal::default_host()
             .default_output_device()
             .ok_or(OutputError::NoDevice)?;
@@ -163,23 +168,40 @@ impl DeviceOutput {
         }
         let (producer, consumer) = ring(spec).split();
         let state = Arc::new(CallbackState::default());
+        let mixer = ClickMixer::new(spec.sample_rate, click);
         let stream = match native_format {
-            SampleFormat::F32 => build_stream::<f32>(&device, config, consumer, state.clone()),
-            SampleFormat::F64 => build_stream::<f64>(&device, config, consumer, state.clone()),
-            SampleFormat::I8 => build_stream::<i8>(&device, config, consumer, state.clone()),
-            SampleFormat::I16 => build_stream::<i16>(&device, config, consumer, state.clone()),
+            SampleFormat::F32 => {
+                build_stream::<f32>(&device, config, consumer, state.clone(), mixer)
+            }
+            SampleFormat::F64 => {
+                build_stream::<f64>(&device, config, consumer, state.clone(), mixer)
+            }
+            SampleFormat::I8 => build_stream::<i8>(&device, config, consumer, state.clone(), mixer),
+            SampleFormat::I16 => {
+                build_stream::<i16>(&device, config, consumer, state.clone(), mixer)
+            }
             SampleFormat::I24 => {
-                build_stream::<cpal::I24>(&device, config, consumer, state.clone())
+                build_stream::<cpal::I24>(&device, config, consumer, state.clone(), mixer)
             }
-            SampleFormat::I32 => build_stream::<i32>(&device, config, consumer, state.clone()),
-            SampleFormat::I64 => build_stream::<i64>(&device, config, consumer, state.clone()),
-            SampleFormat::U8 => build_stream::<u8>(&device, config, consumer, state.clone()),
-            SampleFormat::U16 => build_stream::<u16>(&device, config, consumer, state.clone()),
+            SampleFormat::I32 => {
+                build_stream::<i32>(&device, config, consumer, state.clone(), mixer)
+            }
+            SampleFormat::I64 => {
+                build_stream::<i64>(&device, config, consumer, state.clone(), mixer)
+            }
+            SampleFormat::U8 => build_stream::<u8>(&device, config, consumer, state.clone(), mixer),
+            SampleFormat::U16 => {
+                build_stream::<u16>(&device, config, consumer, state.clone(), mixer)
+            }
             SampleFormat::U24 => {
-                build_stream::<cpal::U24>(&device, config, consumer, state.clone())
+                build_stream::<cpal::U24>(&device, config, consumer, state.clone(), mixer)
             }
-            SampleFormat::U32 => build_stream::<u32>(&device, config, consumer, state.clone()),
-            SampleFormat::U64 => build_stream::<u64>(&device, config, consumer, state.clone()),
+            SampleFormat::U32 => {
+                build_stream::<u32>(&device, config, consumer, state.clone(), mixer)
+            }
+            SampleFormat::U64 => {
+                build_stream::<u64>(&device, config, consumer, state.clone(), mixer)
+            }
             _ => return Err(OutputError::SampleFormat(native_format)),
         }?;
         Ok(Self {
@@ -286,6 +308,7 @@ fn build_stream<T: SizedSample + FromSample<f32>>(
     config: cpal::StreamConfig,
     mut consumer: HeapCons<f32>,
     state: Arc<CallbackState>,
+    mut mixer: ClickMixer,
 ) -> Result<cpal::Stream, cpal::Error> {
     let channels = usize::from(config.channels);
     let rate = u64::from(config.sample_rate);
@@ -302,11 +325,8 @@ fn build_stream<T: SizedSample + FromSample<f32>>(
                     state.pending_ns.store(0, Ordering::Relaxed);
                     state.reset_ack.store(reset, Ordering::Release);
                 }
-                if !state.playing.load(Ordering::Acquire) {
-                    output.fill(T::EQUILIBRIUM);
-                    return;
-                }
-                let samples = fill_output(&mut consumer, output, channels);
+                let music = state.playing.load(Ordering::Acquire);
+                let samples = fill_output(&mut consumer, output, channels, music, &mut mixer);
                 if samples != 0 {
                     let frames = (samples / channels) as u64;
                     let timing = info.timestamp();
@@ -329,16 +349,44 @@ fn fill_output<T: Sample + FromSample<f32>>(
     consumer: &mut HeapCons<f32>,
     output: &mut [T],
     channels: usize,
+    music: bool,
+    mixer: &mut ClickMixer,
 ) -> usize {
+    mixer.begin_callback();
+    if !music && !mixer.active() {
+        output.fill(T::EQUILIBRIUM);
+        return 0;
+    }
+
     let mut scratch = [0.0; 256];
     let chunk_size = (scratch.len() / channels) * channels;
     let mut consumed = 0;
     for chunk in output.chunks_mut(chunk_size) {
-        let count = consumer.pop_slice(&mut scratch[..chunk.len()]);
-        for (target, &sample) in chunk[..count].iter_mut().zip(&scratch[..count]) {
-            *target = T::from_sample(sample.clamp(-1.0, 1.0));
+        let len = chunk.len();
+        let count = if music {
+            consumer.pop_slice(&mut scratch[..len])
+        } else {
+            0
+        };
+        if mixer.active() {
+            scratch[count..len].fill(0.0);
+            for (frame, pcm) in chunk
+                .chunks_mut(channels)
+                .zip(scratch[..len].chunks(channels))
+            {
+                let click = mixer.next_frame();
+                // Scale the music to leave headroom for this click sample.
+                let headroom = 1.0 - click.abs();
+                for (target, &sample) in frame.iter_mut().zip(pcm) {
+                    *target = T::from_sample(sample.clamp(-1.0, 1.0) * headroom + click);
+                }
+            }
+        } else {
+            for (target, &sample) in chunk[..count].iter_mut().zip(&scratch[..count]) {
+                *target = T::from_sample(sample.clamp(-1.0, 1.0));
+            }
+            chunk[count..].fill(T::EQUILIBRIUM);
         }
-        chunk[count..].fill(T::EQUILIBRIUM);
         consumed += count;
     }
     consumed
@@ -346,6 +394,8 @@ fn fill_output<T: Sample + FromSample<f32>>(
 
 #[cfg(test)]
 mod tests {
+    use ringbuf::traits::Observer;
+
     use super::*;
 
     #[test]
@@ -357,8 +407,15 @@ mod tests {
         .split();
         assert_eq!(producer.push_slice(&[0.5, -0.5, 0.25, -0.25]), 4);
         let mut output = [u16::MAX; 8];
-        let consumed =
-            assert_no_alloc::assert_no_alloc(|| fill_output(&mut consumer, &mut output, 2));
+        let consumed = assert_no_alloc::assert_no_alloc(|| {
+            fill_output(
+                &mut consumer,
+                &mut output,
+                2,
+                true,
+                &mut ClickMixer::new(48_000, None),
+            )
+        });
         assert_eq!(consumed, 4);
         assert_eq!(
             output,
@@ -366,5 +423,86 @@ mod tests {
                 49_152, 16_384, 40_960, 24_576, 32_768, 32_768, 32_768, 32_768
             ]
         );
+    }
+
+    #[test]
+    fn click_begins_in_the_next_256_frame_callback_without_consuming_paused_music() {
+        let spec = AudioSpec {
+            sample_rate: 48_000,
+            channels: 2,
+        };
+        let (mut producer, mut consumer) = ring(spec).split();
+        let request = Arc::new(AtomicBool::new(false));
+        let mut click = ClickMixer::new(spec.sample_rate, Some(request.clone()));
+        let mut buffer = [0.0_f32; 512];
+        assert_eq!(producer.push_slice(&[0.25; 512]), 512);
+        assert_eq!(
+            fill_output(&mut consumer, &mut buffer, 2, false, &mut click),
+            0
+        );
+        assert_eq!(buffer, [0.0; 512]);
+
+        request.store(true, Ordering::Release);
+        let mut last_nonzero = None;
+        for callback in 0..4 {
+            let consumed = assert_no_alloc::assert_no_alloc(|| {
+                fill_output(&mut consumer, &mut buffer, 2, false, &mut click)
+            });
+            assert_eq!(consumed, 0);
+            assert!(
+                buffer
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .all(|frame| frame[0] == frame[1])
+            );
+            if callback == 0 {
+                let first = buffer
+                    .iter()
+                    .position(|sample| sample.abs() > 1e-6)
+                    .unwrap()
+                    / 2;
+                let worst_case_latency = (256 + first) as f64 / 48_000.0;
+                assert!(
+                    worst_case_latency < 0.010,
+                    "{worst_case_latency:.6} seconds"
+                );
+            }
+            if let Some(last) = buffer.iter().rposition(|sample| sample.abs() > 1e-6) {
+                last_nonzero = Some(callback * 256 + last / 2);
+            }
+        }
+        assert!(last_nonzero.unwrap() < 48_000 * 15 / 1_000);
+        assert_eq!(consumer.occupied_len(), 512);
+    }
+
+    #[test]
+    fn click_mixes_with_playing_music_without_clipping_and_then_releases() {
+        let spec = AudioSpec {
+            sample_rate: 48_000,
+            channels: 2,
+        };
+        let (mut producer, mut consumer) = ring(spec).split();
+        let request = Arc::new(AtomicBool::new(true));
+        let mut click = ClickMixer::new(spec.sample_rate, Some(request));
+        assert_eq!(producer.push_slice(&[0.97; 2048]), 2048);
+        let mut result = [0.0_f32; 2048];
+        assert_eq!(
+            assert_no_alloc::assert_no_alloc(|| fill_output(
+                &mut consumer,
+                &mut result,
+                2,
+                true,
+                &mut click
+            )),
+            2048
+        );
+        assert!(
+            result[..512]
+                .iter()
+                .any(|sample| (sample - 0.97).abs() > 1e-3)
+        );
+        assert!(result.iter().all(|&sample| (-1.0..=1.0).contains(&sample)));
+        assert!(result[1200..].iter().all(|&sample| sample == 0.97));
     }
 }

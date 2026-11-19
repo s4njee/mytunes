@@ -2595,6 +2595,8 @@ dependencies = [
  "lofty",
  "mp4parse",
  "mt-types",
+ "objc2-audio-toolbox",
+ "objc2-core-foundation",
  "opus",
  "rand",
  "ringbuf",

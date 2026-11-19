@@ -193,7 +193,7 @@ settings(key PK, value JSON)
 - Decoder thread (symphonia) feeds a lock-free ring buffer that the output callback (cpal) drains. The next track is pre-decoded ≥ 10 s before the current one ends, for **sample-accurate gapless** playback (honours encoder delay/padding from LAME/iTunSMPB headers).
 - DSP chain: ReplayGain (track or album, if enabled) → 5-band peaking EQ (60, 230, 910, 3.6k, 14k Hz, Q≈1.0, ±6 dB, matching the handoff's ±6 range) → volume → volume limit (cap) → soft limiter.
 - Resample to the device rate with rubato when it differs. Output format is f32.
-- **UI-sfx channel:** a tiny mixer input for the wheel click sound, so clicks have zero latency and mix over music. The click sample is **our own synthesized sound**, not Apple's.
+- **UI-sfx channel:** a synthesized wheel click mixes into the next output callback on desktop and Android. iOS uses System Sound Services for UI sound behavior. See ADR-0018.
 - API: `load_queue(items, start_index)`, `play/pause/toggle`, `seek(ms)`, `next/prev` (prev restarts if > 4 s elapsed, per the handoff), `set_eq(gains)`, `set_volume`, `set_flags(gapless, sound_check, volume_limit)`, `events() -> Stream<PlayerEvent{state, position_ms, track_id, ended, error}>`.
 - Mobile: Rust owns the cpal stream. Dart owns the OS media session (`audio_service`) and the audio session (`audio_session`), and forwards remote commands and interruptions to Rust.
 - Desktop: the player lives in the Tauri process's managed state. The webview only sends commands and renders events.
@@ -372,6 +372,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
 - [ ] **E4.S5 UI sound-effect channel.** As a wheel user, I want click sounds with no latency so that the wheel feels mechanical.
   - AC1: `play_sfx(Click)` mixes a ≤ 15 ms synthesized click into the output within one callback period (< 10 ms at 48 kHz/256 frames).
   - AC2: Works when music is paused (the stream stays open while the app is in the foreground). Respects the system silent switch on iOS (ambient behaviour for sfx).
+  - _Status 2026-11-19: The CPAL click starts in the next 256-frame callback and plays over music or silence while paused. The audio crate cross-checks for Android. iOS requests the same synthesized click through System Sound Services, which type-checks in isolation. Physical-iPhone timing and silent-switch behavior, plus hosted CI, remain pending. See ADR-0018._
 
 ---
 

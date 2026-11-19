@@ -8,6 +8,7 @@ mod play_order;
 mod player;
 mod queue;
 mod render;
+mod sfx;
 
 pub use decode::{AudioDecodeError, AudioDecoder, AudioSpec};
 pub use dsp::{Dsp, DspError, DspSettings, EQ_FREQUENCIES_HZ, ReplayGain, SoundCheck};
@@ -17,3 +18,4 @@ pub use player::{
 };
 pub use queue::{AudioQueue, QueuedBlock};
 pub use render::{RenderError, RenderStream};
+pub use sfx::{SfxError, SoundEffect};

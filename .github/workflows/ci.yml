@@ -166,7 +166,6 @@ jobs:
   flutter:
     name: Flutter (analyze, test, Android debug APK)
     runs-on: ubuntu-24.04
-    if: ${{ hashFiles('apps/mobile/pubspec.yaml') != '' }}
     defaults:
       run:
         working-directory: apps/mobile
@@ -199,7 +198,6 @@ jobs:
   ios:
     name: iOS build (no codesign)
     runs-on: macos-15
-    if: ${{ hashFiles('apps/mobile/pubspec.yaml') != '' }}
     defaults:
       run:
         working-directory: apps/mobile
@@ -214,5 +212,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ios
+      - name: Check the shared audio engine for iOS
+        working-directory: .
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add aarch64-apple-ios
+          cargo check --locked -p mt-audio --target aarch64-apple-ios
       - run: flutter pub get
       - run: flutter build ios --debug --no-codesign

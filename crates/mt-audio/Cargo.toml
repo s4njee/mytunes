@@ -21,6 +21,11 @@ rubato = "=5.1.0"
 symphonia = { version = "=0.6.1", default-features = false, features = ["aac", "aiff", "alac", "all-meta", "flac", "isomp4", "mp3", "ogg", "pcm", "vorbis", "wav"] }
 thiserror.workspace = true
 
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-audio-toolbox = { version = "=0.3.2", default-features = false, features = ["AudioServices", "objc2-core-foundation"] }
+objc2-core-foundation = { version = "=0.3.2", default-features = false, features = ["CFURL", "std"] }
+tempfile = "=3.27.0"
+
 [dev-dependencies]
 gen-fixtures = { path = "../../tools/gen-fixtures" }
 lofty = "=0.25.5"
