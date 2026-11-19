@@ -33,11 +33,15 @@ headroom over music, and preservation of the paused music queue. The
 player smoke test also requests a click through the public API while
 paused on a Linux ALSA null device.
 
-The iOS sound module cross-checks for `aarch64-apple-ios` in isolation.
-The full audio crate needs Xcode to build bundled libopus. The CI job
-now checks the full crate on macOS. A signed iPhone run still needs to
-exercise `Player::play_sfx(Click)` with Silent mode off and on, both
-while music is paused and while it is playing. Record whether the click
-is audible, whether it vibrates, and whether changing Silent mode
-interrupts the music. Measure click onset separately with an audio
-capture that records both the trigger and the device speaker.
+The full audio crate checks for `aarch64-apple-ios` with Rust 1.98.0
+and Xcode 27.2. A SwiftUI probe linked the current `Player` into an
+arm64 iPhone app. On the iOS simulator the same probe opened a
+`playback` session, loaded a synthetic FLAC track, and called
+`Player::play_sfx(Click)` successfully with music paused and playing.
+The physical build awaits code signing.
+
+On the physical iPhone, exercise the click with Silent mode off and on,
+both while music is paused and while it is playing. Record whether the
+click is audible, whether it vibrates, and whether changing Silent mode
+interrupts the music. Measure click onset with an audio capture that
+records both the trigger and the device speaker.
