@@ -2,11 +2,11 @@
 
 use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use mt_audio::QueueItem;
 use mt_db::queries::{
-    BrowserFacets, LibraryQueries, TrackFilter, TrackRow, TrackSearch, TrackSort,
+    BrowserFacets, LibraryQueries, TrackFilter, TrackRow, TrackSearch, TrackSort, ViewTrack,
 };
 use mt_db::{ArtworkSize, artwork_thumbnail, open_desktop};
 use mt_types::{PlaylistId, TrackId};
@@ -118,8 +118,37 @@ pub struct OpenedView {
     pub view_id: String,
     /// Number of tracks in the snapshot.
     pub count: u32,
+    /// Duration and file size of all rows in the view.
+    pub totals: ViewTotals,
     /// Current library generation.
     pub revision: u32,
+}
+
+/// Combined duration and file size for a view or selection.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Type)]
+pub struct ViewTotals {
+    /// Sum of known durations in milliseconds.
+    #[specta(type = specta_typescript::Number)]
+    pub duration_ms: u64,
+    /// Sum of known file sizes in bytes.
+    #[specta(type = specta_typescript::Number)]
+    pub size_bytes: u64,
+}
+
+impl ViewTotals {
+    fn add(&mut self, track: &ViewTrack) {
+        self.duration_ms = self.duration_ms.saturating_add(track.duration_ms);
+        self.size_bytes = self.size_bytes.saturating_add(track.size_bytes);
+    }
+}
+
+/// Statistics for the selected positions in a snapshot.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Type)]
+pub struct SelectionStats {
+    /// Number of distinct selected positions.
+    pub count: u32,
+    /// Duration and file size of the selected rows.
+    pub totals: ViewTotals,
 }
 
 /// Result of removing tracks and optionally moving their files to Trash.
@@ -131,12 +160,29 @@ pub struct RemovalOutcome {
 
 struct ViewSnapshot {
     handle: OpenedView,
-    ids: Vec<TrackId>,
+    ordered_tracks: Arc<[ViewTrack]>,
+    positions: Vec<usize>,
+}
+
+impl ViewSnapshot {
+    fn track(&self, index: u32) -> Result<&ViewTrack, AppError> {
+        self.positions
+            .get(index as usize)
+            .map(|&position| &self.ordered_tracks[position])
+            .ok_or(AppError::TrackUnavailable)
+    }
+
+    fn track_ids(&self, positions: &[usize]) -> Vec<TrackId> {
+        positions
+            .iter()
+            .map(|&position| self.ordered_tracks[position].id.clone())
+            .collect()
+    }
 }
 
 struct LibraryState {
     db: Connection,
-    base_order: Option<(ViewSpec, Vec<(TrackId, i64)>)>,
+    base_order: Option<(ViewSpec, Arc<[ViewTrack]>)>,
     views: VecDeque<ViewSnapshot>,
     revision: u32,
     next_id: u64,
@@ -193,33 +239,49 @@ impl DesktopLibrary {
     /// Returns an error if the library cannot create the view.
     pub fn view_open(&self, spec: &ViewSpec) -> Result<OpenedView, AppError> {
         let mut state = self.state()?;
-        let mut base = spec.clone();
-        base.query = None;
-        if base.source == ViewSource::Library {
-            base.sort = Some(base.sort.unwrap_or_default());
-        }
+        let base = ViewSpec {
+            source: spec.source.clone(),
+            sort: if spec.source == ViewSource::Library {
+                Some(spec.sort.unwrap_or_default())
+            } else {
+                spec.sort
+            },
+            ..ViewSpec::default()
+        };
         if state
             .base_order
             .as_ref()
             .is_none_or(|(existing, _)| *existing != base)
         {
             let sorted = LibraryQueries::new(&state.db)
-                .ordered_track_keys(base.sort, base.filter())
+                .ordered_view_tracks(base.sort, base.filter())
                 .map_err(|_| AppError::Library)?;
-            state.base_order = Some((base, sorted));
+            state.base_order = Some((base, sorted.into()));
         }
         let matches = LibraryQueries::new(&state.db)
             .matching_row_ids(spec.search())
             .map_err(|_| AppError::Library)?;
         let (_, sorted) = state.base_order.as_ref().ok_or(AppError::Library)?;
-        let ids: Vec<_> = sorted
-            .iter()
-            .filter(|(_, rowid)| matches.as_ref().is_none_or(|set| set.contains(rowid)))
-            .map(|(id, _)| id.clone())
-            .collect();
+        let ordered_tracks = Arc::clone(sorted);
+        let mut positions = Vec::with_capacity(sorted.len());
+        let mut totals = ViewTotals::default();
+        let filter = spec.filter();
+        let has_facets = filter.genre.is_some()
+            || filter.artist.is_some()
+            || filter.compilation.is_some()
+            || filter.album.is_some();
+        for (position, track) in sorted.iter().enumerate() {
+            if (!has_facets || filter.matches_facets(track))
+                && matches.as_ref().is_none_or(|set| set.contains(track.rowid))
+            {
+                positions.push(position);
+                totals.add(track);
+            }
+        }
         let opened = OpenedView {
             view_id: state.next_id.to_string(),
-            count: u32::try_from(ids.len()).map_err(|_| AppError::Library)?,
+            count: u32::try_from(positions.len()).map_err(|_| AppError::Library)?,
+            totals,
             revision: state.revision,
         };
         state.next_id = state.next_id.checked_add(1).ok_or(AppError::Unavailable)?;
@@ -228,7 +290,8 @@ impl DesktopLibrary {
         }
         state.views.push_back(ViewSnapshot {
             handle: opened.clone(),
-            ids,
+            ordered_tracks,
+            positions,
         });
         Ok(opened)
     }
@@ -267,13 +330,38 @@ impl DesktopLibrary {
             .position(|view| view.handle.view_id == view_id)
             .ok_or(AppError::ViewExpired)?;
         let view = state.views.remove(slot).ok_or(AppError::ViewExpired)?;
-        let start = (offset as usize).min(view.ids.len());
-        let end = start.saturating_add(limit as usize).min(view.ids.len());
+        let start = (offset as usize).min(view.positions.len());
+        let end = start
+            .saturating_add(limit as usize)
+            .min(view.positions.len());
+        let ids = view.track_ids(&view.positions[start..end]);
         let rows = LibraryQueries::new(&state.db)
-            .track_page(&view.ids[start..end])
+            .track_page(&ids)
             .map_err(|_| AppError::Library);
         state.views.push_back(view);
         rows
+    }
+
+    /// Calculate statistics for the selected positions in the retained view.
+    ///
+    /// # Errors
+    /// Returns an error if the snapshot expired or a position is out of range.
+    pub fn selection_stats(
+        &self,
+        view_id: &str,
+        indexes: &[u32],
+    ) -> Result<SelectionStats, AppError> {
+        let state = self.state()?;
+        let view = state.snapshot(view_id)?;
+        let mut seen = HashSet::new();
+        let mut stats = SelectionStats::default();
+        for &index in indexes {
+            if seen.insert(index) {
+                stats.totals.add(view.track(index)?);
+                stats.count += 1;
+            }
+        }
+        Ok(stats)
     }
 
     /// Invalidate views after a library change and return the new revision.
@@ -295,7 +383,7 @@ impl DesktopLibrary {
     ) -> Result<(Vec<QueueItem>, usize), AppError> {
         let state = self.state()?;
         let snapshot = state.snapshot(view_id)?;
-        resolve_queue(&state.db, &snapshot.ids, index)
+        resolve_queue(&state.db, &snapshot.track_ids(&snapshot.positions), index)
     }
 
     /// Rebuild the saved queue using the current file locations.
@@ -417,12 +505,7 @@ impl DesktopLibrary {
             let snapshot = state.snapshot(view_id)?;
             let ids = indexes
                 .iter()
-                .map(|index| {
-                    snapshot
-                        .ids
-                        .get(*index as usize)
-                        .ok_or(AppError::TrackUnavailable)
-                })
+                .map(|&index| snapshot.track(index).map(|track| &track.id))
                 .collect::<Result<HashSet<_>, _>>()?;
             let encoded = serde_json::to_string(&ids).map_err(|_| AppError::Library)?;
             let transaction = state.db.transaction().map_err(|_| AppError::Library)?;
@@ -536,6 +619,70 @@ mod tests {
 
     fn track_ids(rows: Vec<TrackRow>) -> Vec<String> {
         rows.into_iter().map(|row| row.id.0).collect()
+    }
+
+    #[test]
+    fn totals_follow_the_filtered_snapshot_and_count_selected_positions() {
+        let (_dir, library) = library_with_tracks();
+        library
+            .state()
+            .expect("lock library")
+            .db
+            .execute_batch(
+                "UPDATE tracks SET duration_ms = 120000, size_bytes = 1000000 WHERE id = 'b';
+                 UPDATE tracks SET duration_ms = 60000, size_bytes = 2000000 WHERE id = 'c';
+                 UPDATE tracks SET size_bytes = -1 WHERE id = 'a';",
+            )
+            .expect("seed durations and sizes");
+        let all = library
+            .view_open(&ViewSpec::default())
+            .expect("open library");
+        assert_eq!(all.count, 3);
+        assert_eq!(
+            all.totals,
+            ViewTotals {
+                duration_ms: 180_000,
+                size_bytes: 3_000_000
+            }
+        );
+
+        let filtered = library
+            .view_open(&ViewSpec {
+                source: ViewSource::Playlist {
+                    playlist_id: PlaylistId("recent".into()),
+                },
+                query: Some("blue".into()),
+                ..ViewSpec::default()
+            })
+            .expect("open filtered playlist");
+        assert_eq!(filtered.count, 3);
+        assert_eq!(
+            filtered.totals,
+            ViewTotals {
+                duration_ms: 300_000,
+                size_bytes: 4_000_000
+            }
+        );
+        let selected = library
+            .selection_stats(&filtered.view_id, &[0, 0, 2])
+            .expect("read selection");
+        assert_eq!(selected.count, 2);
+        assert_eq!(
+            selected.totals,
+            ViewTotals {
+                duration_ms: 240_000,
+                size_bytes: 2_000_000
+            }
+        );
+        assert_eq!(
+            library.selection_stats(&filtered.view_id, &[3]),
+            Err(AppError::TrackUnavailable)
+        );
+        library.invalidate_views().expect("invalidate the snapshot");
+        assert_eq!(
+            library.selection_stats(&filtered.view_id, &[0]),
+            Err(AppError::ViewExpired)
+        );
     }
 
     #[test]

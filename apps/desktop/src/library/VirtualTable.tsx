@@ -31,6 +31,7 @@ export interface TrackTableProps {
   trackViewId?: string;
   trackScrollKey?: string;
   onTrackWindow?: (first: number, end: number) => void;
+  onSelectionChange?: (indexes: number[]) => void;
   onPlayIndex?: (index: number) => void;
   onToggleTrackPlayback?: (index: number) => void;
   onRevealTrack?: (track: Track) => void;
@@ -280,6 +281,7 @@ export function VirtualTable(props: TrackTableProps) {
     }
     setSelected(next);
     setCursor(index);
+    if (props.onSelectionChange) props.onSelectionChange(Array.from(next));
   }
 
   function scrollTo(index: number) {

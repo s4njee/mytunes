@@ -9,6 +9,7 @@ import {
   type PlayerAction,
   type PlayerEvent_Deserialize,
   type ScanUpdate,
+  type SelectionStats,
   type TrackColumn,
   type TrackRow_Serialize,
   type TrackSort,
@@ -18,6 +19,7 @@ import {
 import { type FacetLabel, facetLabels } from "./library/ColumnBrowser";
 import { artUrl, LIBRARY_PAGE_SIZE, type LibraryPages, openLibraryPages } from "./library/ipc";
 import { LibraryWindow, type SourceGroup, type Track } from "./library/LibraryWindow";
+import { viewSummary } from "./library/viewSummary";
 
 const sources: SourceGroup[] = [{ label: "Library", sources: [{ name: "Music", icon: "music" }] }];
 type BrowseSelection = Record<FacetLabel, BrowserOption | null>;
@@ -65,12 +67,13 @@ export function App() {
     rows: [] as TrackRow_Serialize[],
   });
   const [openedView, setOpenedView] = createSignal<LibraryPages["view"]>();
+  const [selectionStats, setSelectionStats] = createSignal<SelectionStats>();
   const [trackScrollKey, setTrackScrollKey] = createSignal("");
   const [selectedRow, setSelectedRow] = createSignal<TrackRow_Serialize>();
   const [player, setPlayer] = createSignal<PlayerEvent_Deserialize>();
   const [playingTrack, setPlayingTrack] = createSignal<TrackRow_Serialize>();
   const [actionNotice, setActionNotice] = createSignal("");
-  const [summary, setSummary] = createSignal("Opening library…");
+  const [summaryMessage, setSummaryMessage] = createSignal("Opening library…");
   let view: LibraryPages | undefined;
   let stopLibraryEvents: (() => void) | undefined;
   let stopBrowserEvents: (() => void) | undefined;
@@ -80,11 +83,34 @@ export function App() {
   let currentRevision = 0;
   let generation = 0;
   let pageRequest = "";
+  let selectionRequest = 0;
   let disposed = false;
   let saves: Promise<void> = Promise.resolve();
 
   function reportError(message: string) {
-    setSummary(message);
+    setSummaryMessage(message);
+  }
+
+  function summary() {
+    const current = openedView();
+    return summaryMessage() || (current ? viewSummary(current, selectionStats()) : "");
+  }
+
+  async function loadSelectionStats(indexes: number[]) {
+    const current = view;
+    const request = ++selectionRequest;
+    if (!current || indexes.length < 2) {
+      setSelectionStats(undefined);
+      return;
+    }
+    try {
+      const result = await commands.viewSelectionStats(current.view.view_id, indexes);
+      if (!disposed && view === current && request === selectionRequest) {
+        setSelectionStats(result.status === "ok" ? result.data : undefined);
+      }
+    } catch {
+      if (!disposed && request === selectionRequest) setSelectionStats(undefined);
+    }
   }
 
   function currentSpec(
@@ -296,8 +322,9 @@ export function App() {
     setVisibleRows({ offset: 0, rows: [] });
     setTrackScrollKey(JSON.stringify(spec));
     setOpenedView(result.data.view);
-    const total = result.data.view.count.toLocaleString();
-    setSummary(`${total} ${result.data.view.count === 1 ? "song" : "songs"}`);
+    selectionRequest += 1;
+    setSelectionStats(undefined);
+    setSummaryMessage("");
     if (settings()?.browser_visible ?? true) loadFacets(spec);
   }
 
@@ -451,6 +478,7 @@ export function App() {
       trackScrollKey={trackScrollKey()}
       trackAt={(index) => displayRows()[index - visibleRows().offset]}
       onTrackWindow={(first, end) => void loadVisible(first, end)}
+      onSelectionChange={(indexes) => void loadSelectionStats(indexes)}
       onPlayIndex={playIndex}
       onToggleTrackPlayback={togglePlaying}
       onRevealTrack={(track) =>

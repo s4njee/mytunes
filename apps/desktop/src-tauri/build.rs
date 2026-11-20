@@ -5,6 +5,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "ping",
         "view_open",
         "view_rows",
+        "view_selection_stats",
         "browser_facets",
         "window_settings_get",
         "window_settings_save",

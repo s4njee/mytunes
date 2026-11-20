@@ -1,7 +1,8 @@
-use std::{borrow::Cow, collections::HashSet};
+use std::borrow::Cow;
 
 use mt_types::{PlaylistId, TrackId};
 use rusqlite::Row;
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -168,6 +169,28 @@ pub struct TrackFilter<'a> {
     pub album: Option<&'a str>,
 }
 
+impl TrackFilter<'_> {
+    /// Check the exact browser filters against a row from the selected source.
+    pub fn matches_facets(self, track: &ViewTrack) -> bool {
+        self.genre
+            .is_none_or(|value| Some(value) == track.genre.as_deref())
+            && self.artist.is_none_or(|value| {
+                let artist = if track.compilation {
+                    Some("Various Artists")
+                } else {
+                    track.artist.as_deref()
+                };
+                Some(value) == artist
+            })
+            && self
+                .compilation
+                .is_none_or(|value| value == track.compilation)
+            && self
+                .album
+                .is_none_or(|value| Some(value) == track.album.as_deref())
+    }
+}
+
 /// A classification offered by the column browser.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Type)]
 pub struct BrowserOption {
@@ -227,6 +250,40 @@ fn track_scope<'a>(
         }
     }
     (sql, args)
+}
+
+/// Fields shared by the desktop view order, search, and totals.
+pub struct ViewTrack {
+    /// Stable public track identifier.
+    pub id: TrackId,
+    /// SQLite row matched by the FTS index.
+    pub rowid: i64,
+    /// Track duration, or zero if unknown.
+    pub duration_ms: u64,
+    /// File size, or zero if unknown.
+    pub size_bytes: u64,
+    genre: Option<String>,
+    artist: Option<String>,
+    compilation: bool,
+    album: Option<String>,
+}
+
+/// Membership of an FTS result in SQLite row-ID order.
+pub enum MatchingRows {
+    /// Every ID in an inclusive range matched.
+    Consecutive(std::ops::RangeInclusive<i64>),
+    /// The result contains gaps between IDs.
+    Sparse(FxHashSet<i64>),
+}
+
+impl MatchingRows {
+    /// Check whether one SQLite row ID matched.
+    pub fn contains(&self, rowid: i64) -> bool {
+        match self {
+            Self::Consecutive(range) => range.contains(&rowid),
+            Self::Sparse(ids) => ids.contains(&rowid),
+        }
+    }
 }
 
 /// Metadata needed to render one row in the desktop track list.
@@ -332,44 +389,87 @@ impl LibraryQueries<'_> {
         search: TrackSearch<'_>,
         filter: TrackFilter<'_>,
     ) -> Result<Vec<TrackId>, QueryError> {
-        self.ordered_tracks(sort, search, filter, read_track_id)
+        self.ordered_tracks("tracks.id", sort, search, filter, read_track_id)
     }
 
-    /// Materialize the base view order alongside the FTS row identifier.
-    pub fn ordered_track_keys(
+    /// Materialize the source order with the fields used for filtering and totals.
+    pub fn ordered_view_tracks(
         &self,
         sort: Option<TrackSort>,
         filter: TrackFilter<'_>,
-    ) -> Result<Vec<(TrackId, i64)>, QueryError> {
-        self.ordered_tracks(sort, TrackSearch::All, filter, |row| {
-            Ok((read_track_id(row)?, row.get(1)?))
-        })
+    ) -> Result<Vec<ViewTrack>, QueryError> {
+        self.ordered_tracks(
+            "tracks.id, tracks.rowid, tracks.duration_ms, tracks.size_bytes,
+             tracks.genre, tracks.artist, tracks.compilation, tracks.album",
+            sort,
+            TrackSearch::All,
+            filter,
+            |row| {
+                let nonnegative = |column| -> rusqlite::Result<u64> {
+                    Ok(row
+                        .get::<_, Option<i64>>(column)?
+                        .and_then(|value| u64::try_from(value).ok())
+                        .unwrap_or_default())
+                };
+                Ok(ViewTrack {
+                    id: read_track_id(row)?,
+                    rowid: row.get(1)?,
+                    duration_ms: nonnegative(2)?,
+                    size_bytes: nonnegative(3)?,
+                    genre: row.get(4)?,
+                    artist: row.get(5)?,
+                    compilation: row.get(6)?,
+                    album: row.get(7)?,
+                })
+            },
+        )
     }
 
     /// Find matching rows without sorting them again.
     pub fn matching_row_ids(
         &self,
         search: TrackSearch<'_>,
-    ) -> Result<Option<HashSet<i64>>, QueryError> {
+    ) -> Result<Option<MatchingRows>, QueryError> {
         let Some(expression) = search.expression() else {
             return Ok(None);
         };
-        let mut statement = self
-            .db
-            .prepare_cached("SELECT rowid FROM tracks_fts WHERE tracks_fts MATCH ?1")?;
-        let rows = statement.query_map([expression.as_ref()], |row| row.get(0))?;
-        Ok(Some(rows.collect::<rusqlite::Result<_>>()?))
+        let mut statement = self.db.prepare_cached(
+            "SELECT min(rowid), max(rowid), count(*), json_group_array(rowid)
+             FROM tracks_fts WHERE tracks_fts MATCH ?1",
+        )?;
+        let result = statement.query_row([expression.as_ref()], |row| {
+            let first: Option<i64> = row.get(0)?;
+            let last: Option<i64> = row.get(1)?;
+            let count: i64 = row.get(2)?;
+            // FTS returns unique row IDs. A gap-free result needs only its bounds.
+            if let (Some(first), Some(last)) = (first, last)
+                && last.checked_sub(first).and_then(|span| span.checked_add(1)) == Some(count)
+            {
+                return Ok(MatchingRows::Consecutive(first..=last));
+            }
+            let encoded = row.get_ref(3)?.as_str()?;
+            let ids: Vec<i64> = serde_json::from_str(encoded).map_err(|error| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    3,
+                    rusqlite::types::Type::Text,
+                    Box::new(error),
+                )
+            })?;
+            Ok(MatchingRows::Sparse(ids.into_iter().collect()))
+        })?;
+        Ok(Some(result))
     }
 
     fn ordered_tracks<T>(
         &self,
+        fields: &str,
         sort: Option<TrackSort>,
         search: TrackSearch<'_>,
         filter: TrackFilter<'_>,
         read: impl FnMut(&Row<'_>) -> rusqlite::Result<T>,
     ) -> Result<Vec<T>, QueryError> {
         let (scope, args) = track_scope(search, filter);
-        let mut sql = format!("SELECT tracks.id, tracks.rowid{scope}");
+        let mut sql = format!("SELECT {fields}{scope}");
         sql.push_str(" ORDER BY ");
         if sort.is_none() && filter.playlist.is_some() {
             sql.push_str("playlist_items.position");

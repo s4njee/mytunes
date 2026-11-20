@@ -9,8 +9,8 @@ use rusqlite::{Connection, Row};
 
 pub(crate) use tracks::ALBUM_DISPLAY_ARTIST;
 pub use tracks::{
-    BrowserFacets, BrowserOption, SortDirection, TrackColumn, TrackFilter, TrackRow, TrackSearch,
-    TrackSort,
+    BrowserFacets, BrowserOption, MatchingRows, SortDirection, TrackColumn, TrackFilter, TrackRow,
+    TrackSearch, TrackSort, ViewTrack,
 };
 
 /// An error reading a library query.

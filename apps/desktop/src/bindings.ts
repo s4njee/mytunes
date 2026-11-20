@@ -8,10 +8,12 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  Connectivity check between the webview and the Rust core. */
 	ping: (options?: InvokeOptions) => typedError<Pong, AppError>(__TAURI_INVOKE("ping", undefined, options)),
-	/**  Materialize a sorted track view and return its handle and count. */
+	/**  Materialize a sorted track view and return its handle and totals. */
 	viewOpen: (spec: ViewSpec_Deserialize, options?: InvokeOptions) => typedError<OpenedView, AppError>(__TAURI_INVOKE("view_open", { spec }, options)),
 	/**  Fetch a page of at most 200 tracks for a previously opened view. */
 	viewRows: (viewId: string, offset: number, limit: number, options?: InvokeOptions) => typedError<TrackRow_Serialize[], AppError>(__TAURI_INVOKE("view_rows", { viewId, offset, limit }, options)),
+	/**  Read totals for the selected rows of the current snapshot. */
+	viewSelectionStats: (viewId: string, indexes: number[], options?: InvokeOptions) => typedError<SelectionStats, AppError>(__TAURI_INVOKE("view_selection_stats", { viewId, indexes }, options)),
 	/**  List the available genre, artist and album choices for a view. */
 	browserFacets: (spec: ViewSpec_Deserialize, options?: InvokeOptions) => typedError<BrowserFacets, AppError>(__TAURI_INVOKE("browser_facets", { spec }, options)),
 	/**  Read the window layout and theme from the library settings. */
@@ -155,6 +157,8 @@ export type OpenedView = {
 	view_id: string,
 	/**  Number of tracks in the snapshot. */
 	count: number,
+	/**  Duration and file size of all rows in the view. */
+	totals: ViewTotals,
 	/**  Current library generation. */
 	revision: number,
 };
@@ -267,6 +271,14 @@ duplicates: number;
 errors: number } |
 /**  The import could not be committed. */
 { state: "failed" };
+
+/**  Statistics for the selected positions in a snapshot. */
+export type SelectionStats = {
+	/**  Number of distinct selected positions. */
+	count: number,
+	/**  Duration and file size of the selected rows. */
+	totals: ViewTotals,
+};
 
 /**  Direction of a track sort. */
 export type SortDirection =
@@ -475,6 +487,14 @@ export type ViewSpec_Serialize = {
 	compilation: boolean | null,
 	/**  Selected album in the column browser, if any. */
 	album: string | null,
+};
+
+/**  Combined duration and file size for a view or selection. */
+export type ViewTotals = {
+	/**  Sum of known durations in milliseconds. */
+	duration_ms: number,
+	/**  Sum of known file sizes in bytes. */
+	size_bytes: number,
 };
 
 /**  Saved presentation of the desktop library. */

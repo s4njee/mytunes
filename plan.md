@@ -378,6 +378,8 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
 
 ### M2 — Desktop MVP (Tauri 2 + SolidJS 2.0)
 
+_Implementation complete as of 2026-11-20. The Linux desktop works through import, browsing, search, playback, media controls, and library statistics. A Linux x64 AppImage is available locally. The playback build passed on Apple Silicon and the final Windows x64 cross-build passed. Native macOS and Windows verification and hosted CI remain open._
+
 > Frontend rules: no domain logic in TS. The frontend renders state and calls typed commands. Sorting, filtering, counting and every file operation happen in Rust (`mt-app`). Components use only `tokens.css` variables for colour, type, spacing and radius.
 
 #### E7 Desktop shell & browsing
@@ -432,7 +434,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC1: The browser (View ▸ Show Column Browser) filters progressively: Genre → Artist → Album. "All (n)" rows at the top. Compilations are grouped under "Compilations" in Artist.
   - AC2: The search box filters the table as you type (FTS5 prefix match across fields, 80 ms debounce). Results for 50k tracks arrive in < 50 ms 🧪.
   - AC3: Ctrl/⌘+F focuses search. Esc clears it.
-  - _Status 2026-11-19: Native Linux browser and search checks passed. A prefix matching 50,000 tracks returned the ordered snapshot and first page in 46–49 ms after debounce. Hosted CI is pending. See ADR-0024._
+  - _Status 2026-11-20: Native Linux browser and search checks passed. In the release build, a prefix matching 50,000 tracks returned the ordered snapshot and first page in 10–17 ms over desktop IPC. Hosted CI is pending. See ADR-0024 and ADR-0026._
 - [ ] **E7.S6 Playback integration.** As a user, I want playback controls and OS media integration so that it behaves like a real player.
   - AC1: Transport buttons, seek in the LCD panel (click and drag), volume slider, all wired to `mt-audio` in the backend.
   - AC2: Media keys and OS integration via souvlaki in the Rust process: MPRIS on Linux (title, artist, art, position), Now Playing on macOS, SMTC on Windows.
@@ -442,6 +444,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
 - [ ] **E7.S7 Status bar & stats.** As a user, I want the iconic library summary so that I know the size of my collection.
   - AC1: Shows "N songs, X days/hours, Y GB" for the current view (selection-aware: "3 of 1,284 songs selected" style when > 1 selected). Computed in Rust.
   - AC2: Updates within 100 ms of a filter change.
+  - _Status 2026-11-20: The Linux release footer updated in 10–30 ms across ten changes on a 50,000-track library. View and selection totals passed automated checks. Hosted CI is pending. See ADR-0026._
 
 ---
 

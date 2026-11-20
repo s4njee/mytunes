@@ -19,7 +19,7 @@ use import::ImportService;
 use media::DesktopMedia;
 use mt_app::{
     BrowserFacets, TrackRow,
-    library::{AppError, DesktopLibrary, OpenedView, ViewSpec},
+    library::{AppError, DesktopLibrary, OpenedView, SelectionStats, ViewSpec},
     window::WindowSettings,
 };
 use mt_audio::PlayerEvent;
@@ -45,7 +45,7 @@ fn ping() -> Result<Pong, AppError> {
     Ok(mt_app::ping())
 }
 
-/// Materialize a sorted track view and return its handle and count.
+/// Materialize a sorted track view and return its handle and totals.
 #[tauri::command]
 #[specta::specta]
 async fn view_open(
@@ -69,6 +69,20 @@ async fn view_rows(
 ) -> Result<Vec<TrackRow>, AppError> {
     let library = library.inner().clone();
     async_runtime::spawn_blocking(move || library.view_rows(&view_id, offset, limit))
+        .await
+        .map_err(|_| AppError::Unavailable)?
+}
+
+/// Read totals for the selected rows of the current snapshot.
+#[tauri::command]
+#[specta::specta]
+async fn view_selection_stats(
+    library: State<'_, Arc<DesktopLibrary>>,
+    view_id: String,
+    indexes: Vec<u32>,
+) -> Result<SelectionStats, AppError> {
+    let library = library.inner().clone();
+    async_runtime::spawn_blocking(move || library.selection_stats(&view_id, &indexes))
         .await
         .map_err(|_| AppError::Unavailable)?
 }
@@ -149,6 +163,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             ping,
             view_open,
             view_rows,
+            view_selection_stats,
             browser_facets,
             window_settings_get,
             window_settings_save,

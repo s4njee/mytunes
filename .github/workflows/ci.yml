@@ -55,7 +55,9 @@ jobs:
       - run: cargo test --workspace --locked
       - name: Desktop library query budgets (50k tracks)
         if: runner.os == 'Linux'
-        run: cargo bench --locked -p mt-db --bench library_queries
+        run: |
+          cargo bench --locked -p mt-db --bench library_queries
+          cargo bench --locked -p mt-app --bench desktop_search
       - name: Generated files are up to date
         shell: bash
         run: |

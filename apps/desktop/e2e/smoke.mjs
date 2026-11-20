@@ -209,7 +209,7 @@ try {
   console.log(
     "Typed IPC, player subscription, restored layout and remote content protection passed",
   );
-  ok = title === "MyTunes" && /songs?$/.test(message);
+  ok = title === "MyTunes" && message === "0 songs, 0 min, 0 B";
 } catch (e) {
   console.error(e);
 } finally {
