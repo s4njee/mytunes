@@ -3,5 +3,7 @@
 //! Public functions under [`api`] are exported to Dart by
 //! `flutter_rust_bridge_codegen generate` (run from `apps/mobile`).
 
+#[cfg(target_os = "android")]
+mod android;
 pub mod api;
 mod frb_generated;

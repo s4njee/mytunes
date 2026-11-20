@@ -2996,8 +2996,17 @@ dependencies = [
 name = "mt_ffi"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
+ "blake3",
  "flutter_rust_bridge",
+ "jni 0.22.4",
+ "mt-audio",
+ "mt-db",
  "mt-types",
+ "ndk-context",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

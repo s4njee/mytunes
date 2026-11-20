@@ -151,6 +151,9 @@ class AndroidEnvironment {
         Platform.environment['CARGOKIT_TOOL_TEMP_DIR'] ?? targetTempDir;
 
     return {
+      // CMake-based Rust dependencies need the same NDK and API level as Cargo.
+      'ANDROID_NDK_HOME': ndkPath,
+      'ANDROID_PLATFORM': 'android-$minSdkVersion',
       arKey: arValue,
       ccKey: ccValue,
       cfFlagsKey: cFlagsValue,

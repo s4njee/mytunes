@@ -464,6 +464,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC1: `mt-ffi` exposes: `open_device_db(path)`, `library_counts()`, `albums(page)`, `album_tracks(id)`, `artists()`, `songs(page)`, `playlists()`, `playlist_tracks(id)`, `artwork_path(id, size)`, the player API (§3.4), `player_events() -> Stream`, `settings_get/set`, `record_event(...)`, and the sync client API (M4).
   - AC2: All calls are async and never block the UI isolate. A test calls each from Dart 🧪.
   - AC3: Rust panics are caught at the FFI boundary and surfaced as Dart exceptions with a message.
+  - _Status 2026-11-20: The local library, artwork, event log, settings, and playback bridge passed Dart integration tests on Android. An injected panic reached Dart as an exception with the original message. Hosted CI and native iOS verification remain open. Sync APIs are scheduled for M4. See ADR-0028._
 - [ ] **E5.S3 Dev library seeding.** As a developer, I want to populate the phone without sync so that I can build M3 before M4.
   - AC1: Debug builds only: a hidden "Dev import" action (long-press the header eyebrow for 3 s) opens the OS file picker, copies the chosen files into the app sandbox and builds the device DB using `mt-meta` (the only place the phone reads tags; compiled out of release builds).
   - AC2: Alternatively `tools/seed_device` writes a device DB plus files that can be pushed with `adb push` or Xcode's container download.
