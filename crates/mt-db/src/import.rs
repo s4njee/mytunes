@@ -80,6 +80,12 @@ pub struct ManagedMedia<'a> {
     pub copy_files: bool,
 }
 
+struct MediaFolder<'a> {
+    canonical: PathBuf,
+    requested: &'a Path,
+    copy_files: bool,
+}
+
 /// Import files or folders. Only directory selections reconcile missing tracks.
 ///
 /// # Errors
@@ -109,12 +115,9 @@ pub fn import_library_paths(
             Err(error) => return Err(error),
         }
     }
-    let folder = media
-        .folder
-        .canonicalize()
-        .unwrap_or_else(|_| media.folder.to_owned());
-    let media = ManagedMedia {
-        folder: &folder,
+    let media = MediaFolder {
+        canonical: resolve_media_folder(media.folder).unwrap_or_else(|_| media.folder.to_owned()),
+        requested: media.folder,
         copy_files: media.copy_files,
     };
     let mut report = scan_selection(db, &roots, &folders, Some(&media), on_progress)?;
@@ -129,18 +132,31 @@ fn resolve(path: &Path) -> Result<PathBuf, ImportError> {
     })
 }
 
+fn resolve_media_folder(folder: &Path) -> io::Result<PathBuf> {
+    match folder.canonicalize() {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let (Some(parent), Some(name)) = (folder.parent(), folder.file_name()) else {
+                return Err(error);
+            };
+            // Keep the same base path before and after creating the media folder.
+            Ok(resolve_media_folder(parent)?.join(name))
+        }
+        result => result,
+    }
+}
+
 fn scan_selection(
     db: &mut Connection,
     roots: &[PathBuf],
     folders: &[PathBuf],
-    media: Option<&ManagedMedia<'_>>,
+    media: Option<&MediaFolder<'_>>,
     on_progress: impl FnMut(ScanProgress),
 ) -> Result<FolderImport, ImportError> {
     let transaction = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let mut copied = PendingCopies::default();
     let mut existing = HashMap::new();
     let mut previous = HashMap::new();
-    let mut copies = HashSet::new();
+    let mut copies = HashMap::new();
     {
         let mut select = transaction.prepare(
             "SELECT file_path, size_bytes, file_mtime_ns, file_hash IS NOT NULL, missing,
@@ -151,8 +167,17 @@ fn scan_selection(
         while let Some(row) = rows.next()? {
             let path = PathBuf::from(row.get::<_, String>(0)?);
             let missing = row.get::<_, bool>(4)?;
-            if !missing && media.is_some_and(|media| path.starts_with(media.folder)) {
-                copies.insert(path.clone());
+            if let Some(media) = media {
+                if media.requested != media.canonical
+                    && let Ok(relative) = path.strip_prefix(media.requested)
+                {
+                    // A previous import may have stored the path through an alias.
+                    copies
+                        .entry(media.canonical.join(relative))
+                        .or_insert_with(|| (path.clone(), missing));
+                } else if path.starts_with(&media.canonical) {
+                    copies.insert(path.clone(), (path.clone(), missing));
+                }
             }
             if !roots.contains(&path) && !folders.iter().any(|root| path.starts_with(root)) {
                 continue;
@@ -210,9 +235,12 @@ fn scan_selection(
             &known_artwork,
             |path| {
                 !media
-                    .and_then(|media| managed_path(media.folder, path))
+                    .and_then(|media| managed_path(&media.canonical, path))
                     .is_some_and(|destination| {
-                        copies.contains(&destination) && destination.is_file()
+                        copies
+                            .get(&destination)
+                            .is_some_and(|(_, missing)| !missing)
+                            && destination.is_file()
                     })
             },
             on_progress,
@@ -223,11 +251,11 @@ fn scan_selection(
                 let mut copied_path = None;
                 if let (Some(media), None, Ok(Some(track))) =
                     (media, existing_path, &mut file.result)
-                    && let Some(destination) = managed_path(media.folder, &file.path)
+                    && let Some(destination) = managed_path(&media.canonical, &file.path)
                 {
-                    let prior = track_exists
-                        .query_row([destination.to_str()], |row| row.get::<_, bool>(0))?;
-                    if media.copy_files || prior {
+                    let prior = copies.get(&destination);
+                    if media.copy_files || prior.is_some() {
+                        let destination = prior.map_or(destination, |(path, _)| path.clone());
                         match copy_media(&file.path, &destination, track) {
                             Ok(true) => copied.0.push(destination.clone()),
                             Ok(false) => {}

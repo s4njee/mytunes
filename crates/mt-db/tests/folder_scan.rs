@@ -86,6 +86,15 @@ fn mixed_selection_counts_unique_paths_and_reports_identical_content() {
 fn managed_copies_keep_distinct_sources_and_survive_repeat_imports() {
     let dir = tempdir().unwrap();
     let mut db = open_desktop(dir.path().join("library.sqlite")).unwrap();
+    #[cfg(unix)]
+    let media_folder = {
+        let actual = dir.path().join("managed parent");
+        let alias = dir.path().join("managed alias");
+        fs::create_dir(&actual).unwrap();
+        std::os::unix::fs::symlink(&actual, &alias).unwrap();
+        alias.join("nested").join("MyTunes Media")
+    };
+    #[cfg(not(unix))]
     let media_folder = dir.path().join("MyTunes Media");
     let mut media = ManagedMedia {
         folder: &media_folder,
@@ -116,6 +125,25 @@ fn managed_copies_keep_distinct_sources_and_survive_repeat_imports() {
     }
 
     media.copy_files = false;
+    #[cfg(unix)]
+    let copies: Vec<_> = {
+        let canonical = media.folder.canonicalize().unwrap();
+        copies
+            .into_iter()
+            .map(|path| {
+                // Older libraries may store the requested spelling of the path.
+                let relative = Path::new(&path).strip_prefix(&canonical).unwrap();
+                let aliased = media.folder.join(relative);
+                let aliased = aliased.to_str().unwrap();
+                db.execute(
+                    "UPDATE tracks SET file_path = ?1 WHERE file_path = ?2",
+                    (aliased, path),
+                )
+                .unwrap();
+                aliased.to_owned()
+            })
+            .collect()
+    };
     assert_eq!(
         import_library_paths(&mut db, &paths, &media, |_| {})
             .unwrap()
@@ -127,6 +155,10 @@ fn managed_copies_keep_distinct_sources_and_survive_repeat_imports() {
     assert_eq!((restored.read, restored.duplicates), (1, 0));
     assert_eq!(fs::read(&copies[0]).unwrap(), original);
     assert!(paths.iter().all(|path| path.is_file()));
+    let count: u32 = db
+        .query_row("SELECT count(*) FROM tracks", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 2);
 }
 
 #[test]
