@@ -1,16 +1,17 @@
 import { Channel } from "@tauri-apps/api/core";
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import {
   commands,
   events,
   type ImportSettings,
+  type PlayerEvent_Deserialize,
   type ScanUpdate,
   type TrackColumn,
   type TrackRow_Serialize,
   type TrackSort,
   type WindowSettings_Serialize,
 } from "./bindings";
-import { artUrl, type LibraryPages, openLibraryPages } from "./library/ipc";
+import { artUrl, LIBRARY_PAGE_SIZE, type LibraryPages, openLibraryPages } from "./library/ipc";
 import { type Facet, LibraryWindow, type SourceGroup, type Track } from "./library/LibraryWindow";
 
 const sources: SourceGroup[] = [{ label: "Library", sources: [{ name: "Music", icon: "music" }] }];
@@ -27,7 +28,16 @@ function displayTrack(row: TrackRow_Serialize): Track {
     seconds: Math.floor((row.duration_ms ?? 0) / 1000),
     artist: row.artist ?? "Unknown Artist",
     album: row.album ?? "Unknown Album",
+    albumArtist: row.album_artist ?? undefined,
     genre: row.genre ?? "",
+    year: row.year ?? undefined,
+    trackNumber: row.track_no ?? undefined,
+    dateAdded: row.date_added ?? undefined,
+    lastPlayed: row.last_played_at ?? undefined,
+    kind: row.codec
+      ? `${row.codec.toUpperCase()}${row.bitrate ? ` · ${row.bitrate.toLocaleString()} kbps` : ""}`
+      : undefined,
+    size: row.size_bytes ?? undefined,
     rating: Math.max(0, Math.min(5, Math.round(row.rating / 20))),
     plays: row.play_count,
     checked: row.checked,
@@ -41,17 +51,109 @@ export function App() {
   const [scan, setScan] = createSignal<ScanUpdate>();
   const [preferenceBusy, setPreferenceBusy] = createSignal(false);
   const [preferenceError, setPreferenceError] = createSignal("");
-  const [rows, setRows] = createSignal<TrackRow_Serialize[]>([]);
-  const [selected, setSelected] = createSignal("");
+  const [visibleRows, setVisibleRows] = createSignal({
+    offset: 0,
+    rows: [] as TrackRow_Serialize[],
+  });
+  const [openedView, setOpenedView] = createSignal<LibraryPages["view"]>();
+  const [selectedRow, setSelectedRow] = createSignal<TrackRow_Serialize>();
+  const [player, setPlayer] = createSignal<PlayerEvent_Deserialize>();
+  const [playingTrack, setPlayingTrack] = createSignal<TrackRow_Serialize>();
+  const [actionNotice, setActionNotice] = createSignal("");
   const [summary, setSummary] = createSignal("Opening library…");
   let view: LibraryPages | undefined;
   let stopLibraryEvents: (() => void) | undefined;
   let generation = 0;
+  let pageRequest = "";
   let disposed = false;
   let saves: Promise<void> = Promise.resolve();
 
   function reportError(message: string) {
     setSummary(message);
+  }
+
+  async function loadVisible(first: number, end: number) {
+    const current = view;
+    if (!current || first >= end) return;
+    const start = Math.floor(first / LIBRARY_PAGE_SIZE) * LIBRARY_PAGE_SIZE;
+    const last = Math.floor((end - 1) / LIBRARY_PAGE_SIZE) * LIBRARY_PAGE_SIZE;
+    const key = `${current.view.view_id}:${start}:${last}`;
+    if (pageRequest === key) return;
+    pageRequest = key;
+    const pages = [];
+    for (let offset = start; offset <= last; offset += LIBRARY_PAGE_SIZE) {
+      pages.push(current.pageFor(offset));
+    }
+    try {
+      const results = await Promise.all(pages);
+      if (pageRequest !== key || disposed) return;
+      const rows = [];
+      for (const result of results) {
+        if (result.status === "error") {
+          pageRequest = "";
+          if (result.error.kind !== "view_expired")
+            reportError("Could not read the music library.");
+          return;
+        }
+        rows.push(...result.data);
+      }
+      setVisibleRows({ offset: start, rows });
+    } catch {
+      if (pageRequest === key && !disposed) {
+        pageRequest = "";
+        reportError("Could not read the music library.");
+      }
+    }
+  }
+
+  async function trackAction(
+    action: () => ReturnType<typeof commands.playView>,
+    errorMessage: string,
+  ) {
+    setActionNotice("");
+    try {
+      if ((await action()).status === "error") setActionNotice(errorMessage);
+    } catch {
+      setActionNotice(errorMessage);
+    }
+  }
+
+  function playIndex(index: number) {
+    const current = view;
+    if (current && index < current.view.count) {
+      void trackAction(
+        () => commands.playView(current.view.view_id, index),
+        "Could not play this track.",
+      );
+    }
+  }
+
+  function togglePlaying(index = 0) {
+    if (player()?.track_id) {
+      void trackAction(commands.playerToggle, "Could not change playback.");
+    } else {
+      playIndex(index);
+    }
+  }
+
+  async function removeTracks(viewId: string, indexes: number[], trash: boolean) {
+    setActionNotice("");
+    try {
+      const result = await commands.tracksRemove(viewId, indexes, trash);
+      if (result.status === "error") {
+        setActionNotice("Could not remove the selected tracks.");
+      } else {
+        setSelectedRow(undefined);
+        if (result.data.trash_errors > 0) {
+          const count = result.data.trash_errors;
+          setActionNotice(
+            `${count.toLocaleString()} ${count === 1 ? "file" : "files"} could not be moved to Trash.`,
+          );
+        }
+      }
+    } catch {
+      setActionNotice("Could not remove the selected tracks.");
+    }
   }
 
   async function updateImportSettings(
@@ -105,13 +207,9 @@ export function App() {
     }
     view?.close();
     view = result.data;
-    const page = await view.pageFor(0);
-    if (request !== generation) return;
-    if (page.status === "error") {
-      reportError("Could not read the music library.");
-      return;
-    }
-    setRows(page.data);
+    pageRequest = "";
+    setVisibleRows({ offset: 0, rows: [] });
+    setOpenedView(result.data.view);
     const total = result.data.view.count.toLocaleString();
     setSummary(`${total} ${result.data.view.count === 1 ? "song" : "songs"}`);
   }
@@ -120,6 +218,15 @@ export function App() {
     () => undefined,
     () => {
       const initialize = async () => {
+        const transport = new Channel<PlayerEvent_Deserialize>();
+        transport.onmessage = (update) => {
+          if (disposed) return;
+          setPlayer(update);
+          if (update.error) setActionNotice("Could not play the track.");
+        };
+        void commands.subscribePlayer(transport).catch(() => {
+          if (!disposed) setActionNotice("Could not read playback state.");
+        });
         const updates = new Channel<ScanUpdate>();
         updates.onmessage = (update) => {
           if (!disposed) setScan(update);
@@ -154,6 +261,23 @@ export function App() {
         await loadView();
       };
       void initialize().catch(() => reportError("Could not open the music library."));
+    },
+  );
+
+  createEffect(
+    () => player()?.track_id,
+    (id) => {
+      if (!id) return;
+      void commands
+        .trackGet(id)
+        .then((result) => {
+          if (!disposed && player()?.track_id === id && result.status === "ok") {
+            setPlayingTrack(result.data);
+          }
+        })
+        .catch(() => {
+          if (!disposed) setActionNotice("Could not read the playing track.");
+        });
     },
   );
 
@@ -201,7 +325,11 @@ export function App() {
     });
   };
 
-  const selectedRow = () => rows().find((row) => row.id === selected());
+  const displayRows = createMemo(() => visibleRows().rows.map(displayTrack));
+  const nowPlaying = () => {
+    const row = playingTrack();
+    return row && row.id === player()?.track_id ? displayTrack(row) : undefined;
+  };
   const selectedArtwork = () => {
     const id = selectedRow()?.artwork_id;
     return id ? artUrl(id, 300) : undefined;
@@ -213,13 +341,34 @@ export function App() {
 
   return (
     <LibraryWindow
-      tracks={rows().map(displayTrack)}
-      selectedId={selected()}
+      tracks={[]}
+      trackCount={openedView()?.count ?? 0}
+      trackViewId={openedView()?.view_id}
+      trackAt={(index) => displayRows()[index - visibleRows().offset]}
+      onTrackWindow={(first, end) => void loadVisible(first, end)}
+      onPlayIndex={playIndex}
+      onToggleTrackPlayback={togglePlaying}
+      onRevealTrack={(track) =>
+        void trackAction(
+          () => commands.trackReveal(track.id),
+          "Could not show this track in File Manager.",
+        )
+      }
+      onTrackChecked={(track, checked) =>
+        void trackAction(
+          () => commands.trackSetChecked(track.id, checked),
+          "Could not update sync selection.",
+        )
+      }
+      onRemoveTracks={(...selection) => void removeTracks(...selection)}
+      selectedId={selectedRow()?.id ?? ""}
       sources={sources}
       activeSource="Music"
       facets={facets}
-      playing={false}
-      position={0}
+      track={nowPlaying()}
+      playing={player()?.state === "playing"}
+      position={Math.floor((player()?.position_ms ?? 0) / 1_000)}
+      onTogglePlaying={() => togglePlaying()}
       volume={65}
       artwork={selectedArtwork()}
       artworkTrack={artworkTrack()}
@@ -228,7 +377,7 @@ export function App() {
       theme={settings()?.theme ?? "system"}
       showSystemTheme
       scanProgress={scanProgress()}
-      importNotice={scanNotice()}
+      importNotice={[scanNotice(), actionNotice()].filter(Boolean).join(" · ")}
       importSettings={importSettings()}
       preferenceBusy={preferenceBusy()}
       preferenceError={preferenceError()}
@@ -270,7 +419,7 @@ export function App() {
       }
       onColumnVisibility={(column, visible) => updateColumn(column, { visible })}
       summary={summary()}
-      onSelect={(track) => setSelected(track.id)}
+      onSelect={(track) => setSelectedRow(visibleRows().rows.find((row) => row.id === track.id))}
       onSort={(sort) => {
         updateSettings({ sort });
         void loadView(sort).catch(() => reportError("Could not sort the music library."));

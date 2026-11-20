@@ -427,6 +427,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC4: Multi-select (shift and ctrl/cmd), ⏎ plays, space toggles play/pause, Delete removes from library with a confirm dialog that offers "Also move files to Trash" (default unticked; Rust `trash` crate).
   - AC5: 50k rows scroll at ≥ 55 fps on WebKitGTK (carries over the spike's bar).
   - AC6: The now-playing row shows a speaker glyph. A double-click starts playback from that row with the current view as the queue. Right-click ▸ "Show in File Manager" uses the `opener` plugin's reveal.
+  - _Status 2026-11-19: Production WebKitGTK averaged 60.5 and 60.4 fps on 50,000 tracks at 200 and 1,200 px/s. Linux checks passed for selection, focus, column toggles, playback, reveal, and default and opt-in Trash removal. Native macOS and Windows verification and hosted CI are pending. See ADR-0023._
 - [ ] **E7.S5 Column browser & search.** As a user, I want to narrow by genre, artist and album, and to search instantly, so that I find music fast.
   - AC1: The browser (View ▸ Show Column Browser) filters progressively: Genre → Artist → Album. "All (n)" rows at the top. Compilations are grouped under "Compilations" in Artist.
   - AC2: The search box filters the table as you type (FTS5 prefix match across fields, 80 ms debounce). Results for 50k tracks arrive in < 50 ms 🧪.

@@ -519,6 +519,17 @@
 .track-rating-column {
   width: 11%;
 }
+.track-album-artist-column,
+.track-last-played-column,
+.track-date-added-column,
+.track-kind-column {
+  width: 15%;
+}
+.track-year-column,
+.track-track-number-column,
+.track-size-column {
+  width: 8%;
+}
 
 .track-table th,
 .track-table td {
@@ -549,12 +560,93 @@
   border-bottom: 1px solid var(--mt-rule);
 }
 
-.track-table tbody tr:nth-child(even) {
+.track-table tbody tr.alternate-row {
   background: var(--mt-desktop-stripe);
 }
 
-.track-table tbody tr:hover {
+.track-table tbody tr[data-track-index]:hover {
   background: var(--mt-desktop-soft-accent);
+}
+
+.track-table .track-spacer {
+  height: 0;
+  padding: 0;
+  border: 0;
+}
+
+.track-table:focus {
+  outline: none;
+}
+
+.track-table:focus-visible {
+  outline: 1px solid var(--mt-accent);
+  outline-offset: -1px;
+}
+
+.track-menu,
+.remove-tracks {
+  padding: var(--mt-desktop-space-small);
+  border: var(--rule);
+  border-radius: var(--mt-desktop-radius-panel);
+  color: var(--mt-text-primary);
+  background: var(--mt-desktop-canvas);
+  box-shadow: var(--mt-shadow-album-tile);
+}
+
+.track-menu {
+  display: grid;
+  position: fixed;
+  z-index: 4;
+  min-inline-size: 14rem;
+  max-block-size: 20rem;
+  overflow: auto;
+}
+
+.track-menu button {
+  padding: var(--mt-desktop-space-small);
+  border: 0;
+  background: transparent;
+  text-align: start;
+}
+
+.track-menu button:hover,
+.track-menu button:focus-visible {
+  background: var(--mt-desktop-soft-accent);
+}
+
+.track-menu button span {
+  display: inline-block;
+  inline-size: var(--mt-desktop-size-icon);
+}
+
+.remove-tracks {
+  max-inline-size: 28rem;
+  padding: var(--mt-desktop-space-section);
+}
+
+.remove-tracks h2 {
+  margin: 0;
+  font: var(--mt-desktop-type-title);
+}
+
+.remove-tracks label {
+  display: flex;
+  align-items: center;
+  gap: var(--mt-desktop-space-small);
+}
+
+.remove-tracks form {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--mt-desktop-space-small);
+  margin-block-start: var(--mt-desktop-space-medium);
+}
+
+.remove-tracks :where(form) button {
+  padding: var(--mt-desktop-space-small) var(--mt-desktop-space-medium);
+  border: var(--rule);
+  border-radius: var(--mt-desktop-radius-control);
+  background: var(--mt-desktop-header);
 }
 
 .track-table tbody tr.selected {

@@ -6,6 +6,7 @@
 mod artwork;
 pub mod events;
 mod import;
+mod tracks;
 
 use std::sync::Arc;
 
@@ -134,6 +135,12 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             import::import_set_copy,
             import::import_add_watch,
             import::import_remove_watch,
+            tracks::play_view,
+            tracks::player_toggle,
+            tracks::track_get,
+            tracks::track_set_checked,
+            tracks::track_reveal,
+            tracks::tracks_remove,
             subscribe_player,
             subscribe_scan,
             subscribe_sync
@@ -197,6 +204,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .menu(|app| {
             let menu = Menu::default(app)?;
             let add = MenuItemBuilder::with_id(import::ADD_FOLDER, "Add Folder to Library…")
@@ -231,6 +239,7 @@ pub fn run() {
             });
         })
         .manage(DesktopChannels::default())
+        .manage(tracks::DesktopPlayer::default())
         .setup(move |app| {
             let data = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data)?;

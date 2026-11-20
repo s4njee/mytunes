@@ -1,9 +1,10 @@
 //! Desktop IPC use cases with bounded paging and immutable view membership.
 
-use std::collections::VecDeque;
-use std::path::Path;
+use std::collections::{HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
+use mt_audio::QueueItem;
 use mt_db::queries::{LibraryQueries, TrackFilter, TrackRow, TrackSearch, TrackSort};
 use mt_db::{ArtworkSize, artwork_thumbnail, open_desktop};
 use mt_types::{PlaylistId, TrackId};
@@ -36,6 +37,12 @@ pub enum AppError {
     /// A folder cannot be monitored for filesystem changes.
     #[error("Could not watch this folder.")]
     WatchFolder,
+    /// A track's file is unavailable or the selection is stale.
+    #[error("This track is unavailable.")]
+    TrackUnavailable,
+    /// Opening, decoding, or controlling the player failed.
+    #[error("Could not play music.")]
+    Playback,
     /// A desktop service could not handle the request.
     #[error("The desktop service is temporarily unavailable.")]
     Unavailable,
@@ -84,6 +91,13 @@ pub struct OpenedView {
     pub revision: u32,
 }
 
+/// Result of removing tracks and optionally moving their files to Trash.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Type)]
+pub struct RemovalOutcome {
+    /// Files that could not be moved to Trash.
+    pub trash_errors: u32,
+}
+
 struct ViewSnapshot {
     handle: OpenedView,
     ids: Vec<TrackId>,
@@ -94,6 +108,21 @@ struct LibraryState {
     views: VecDeque<ViewSnapshot>,
     revision: u32,
     next_id: u64,
+}
+
+impl LibraryState {
+    fn snapshot(&self, id: &str) -> Result<&ViewSnapshot, AppError> {
+        self.views
+            .iter()
+            .find(|view| view.handle.view_id == id)
+            .ok_or(AppError::ViewExpired)
+    }
+
+    fn invalidate(&mut self) -> Result<u32, AppError> {
+        self.revision = self.revision.checked_add(1).ok_or(AppError::Unavailable)?;
+        self.views.clear();
+        Ok(self.revision)
+    }
 }
 
 /// The open desktop library and its active views.
@@ -192,10 +221,136 @@ impl DesktopLibrary {
     /// # Errors
     /// Returns an error if the library cannot be updated.
     pub fn invalidate_views(&self) -> Result<u32, AppError> {
+        self.state()?.invalidate()
+    }
+
+    /// Build a playback queue from a view, skipping unavailable files.
+    ///
+    /// # Errors
+    /// Returns an error if the view expired or the requested track is unavailable.
+    pub fn playback_queue(
+        &self,
+        view_id: &str,
+        index: u32,
+    ) -> Result<(Vec<QueueItem>, usize), AppError> {
+        let state = self.state()?;
+        let snapshot = state.snapshot(view_id)?;
+        let tracks = LibraryQueries::new(&state.db)
+            .playback_tracks(&snapshot.ids)
+            .map_err(|_| AppError::Library)?;
+        let start = tracks
+            .iter()
+            .position(|(position, _)| *position == index)
+            .ok_or(AppError::TrackUnavailable)?;
+        let queue = tracks
+            .into_iter()
+            .map(|(_, track)| QueueItem {
+                id: track.id,
+                path: track.path,
+                album: track.album_key,
+            })
+            .collect();
+        Ok((queue, start))
+    }
+
+    /// Read the current metadata of a track by its library identifier.
+    ///
+    /// # Errors
+    /// Returns an error if the track is no longer present.
+    pub fn track(&self, id: &TrackId) -> Result<TrackRow, AppError> {
+        let state = self.state()?;
+        LibraryQueries::new(&state.db)
+            .track_page(std::slice::from_ref(id))
+            .map_err(|_| AppError::Library)?
+            .pop()
+            .ok_or(AppError::TrackUnavailable)
+    }
+
+    /// Resolve a track's local path for the native file manager.
+    ///
+    /// # Errors
+    /// Returns an error if the track or its file is unavailable.
+    pub fn file_to_reveal(&self, id: &TrackId) -> Result<PathBuf, AppError> {
+        let state = self.state()?;
+        LibraryQueries::new(&state.db)
+            .playback_tracks(std::slice::from_ref(id))
+            .map_err(|_| AppError::Library)?
+            .pop()
+            .map(|(_, track)| track.path)
+            .filter(|path| path.is_file())
+            .ok_or(AppError::TrackUnavailable)
+    }
+
+    /// Set a track's inclusion in sync and invalidate open views.
+    ///
+    /// # Errors
+    /// Returns an error if the track is gone or the update fails.
+    pub fn set_checked(&self, id: &TrackId, checked: bool) -> Result<u32, AppError> {
         let mut state = self.state()?;
-        state.revision = state.revision.checked_add(1).ok_or(AppError::Unavailable)?;
-        state.views.clear();
-        Ok(state.revision)
+        let changed = state
+            .db
+            .execute(
+                "UPDATE tracks SET checked = ?1 WHERE id = ?2",
+                (checked, &id.0),
+            )
+            .map_err(|_| AppError::Library)?;
+        if changed == 0 {
+            return Err(AppError::TrackUnavailable);
+        }
+        state.invalidate()
+    }
+
+    /// Remove the selected snapshot positions. Move available files to Trash if requested.
+    ///
+    /// # Errors
+    /// Returns an error if the view expired, a position is invalid, or SQLite rejects the delete.
+    pub fn remove_tracks(
+        &self,
+        view_id: &str,
+        indexes: &[u32],
+        trash_files: bool,
+    ) -> Result<(u32, RemovalOutcome), AppError> {
+        let (revision, paths) = {
+            let mut state = self.state()?;
+            let snapshot = state.snapshot(view_id)?;
+            let ids = indexes
+                .iter()
+                .map(|index| {
+                    snapshot
+                        .ids
+                        .get(*index as usize)
+                        .ok_or(AppError::TrackUnavailable)
+                })
+                .collect::<Result<HashSet<_>, _>>()?;
+            let encoded = serde_json::to_string(&ids).map_err(|_| AppError::Library)?;
+            let transaction = state.db.transaction().map_err(|_| AppError::Library)?;
+            let paths = {
+                let mut delete = transaction.prepare(
+                    "DELETE FROM tracks WHERE id IN (SELECT value FROM json_each(?1)) RETURNING file_path"
+                ).map_err(|_| AppError::Library)?;
+                let rows = delete
+                    .query_map([encoded], |row| row.get::<_, String>(0))
+                    .map_err(|_| AppError::Library)?;
+                rows.collect::<rusqlite::Result<Vec<_>>>()
+                    .map_err(|_| AppError::Library)?
+            };
+            transaction.commit().map_err(|_| AppError::Library)?;
+            (state.invalidate()?, paths)
+        };
+        let mut trash_errors = 0u32;
+        if trash_files {
+            for path in paths {
+                if !std::fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_file()) {
+                    trash_errors = trash_errors.saturating_add(1);
+                    continue;
+                }
+                if let Err(error) = trash::delete(&path) {
+                    eprintln!("could not move {path} to Trash: {error}");
+                    trash_errors = trash_errors.saturating_add(1);
+                }
+            }
+        }
+        Ok((revision, RemovalOutcome { trash_errors }))
     }
 
     /// Read the saved desktop layout and appearance.
@@ -253,6 +408,64 @@ mod tests {
 
     fn track_ids(rows: Vec<TrackRow>) -> Vec<String> {
         rows.into_iter().map(|row| row.id.0).collect()
+    }
+
+    #[test]
+    fn queues_and_removals_use_the_same_snapshot_positions() {
+        let (dir, library) = library_with_tracks();
+        let file = dir.path().join("available.wav");
+        std::fs::write(&file, b"test file").expect("create library file");
+        {
+            let state = library.state().expect("lock test library");
+            state
+                .db
+                .execute("UPDATE tracks SET missing = 1 WHERE id = 'c'", [])
+                .expect("mark track missing");
+            state
+                .db
+                .execute(
+                    "UPDATE tracks SET file_path = ?1 WHERE id = 'b'",
+                    [file.to_str()],
+                )
+                .expect("attach local file");
+        }
+        let view = library
+            .view_open(&ViewSpec::default())
+            .expect("open sorted tracks");
+        let (queue, start) = library
+            .playback_queue(&view.view_id, 2)
+            .expect("make playback queue");
+        assert_eq!(start, 1);
+        assert_eq!(
+            queue
+                .iter()
+                .map(|item| item.id.0.as_str())
+                .collect::<Vec<_>>(),
+            ["a", "b"]
+        );
+        assert_eq!(queue[start].path, file);
+        assert_eq!(
+            library.playback_queue(&view.view_id, 1),
+            Err(AppError::TrackUnavailable)
+        );
+
+        assert_eq!(
+            library.remove_tracks(&view.view_id, &[60], false),
+            Err(AppError::TrackUnavailable)
+        );
+        let (_, removed) = library
+            .remove_tracks(&view.view_id, &[2, 2], false)
+            .expect("remove track once");
+        assert_eq!(removed.trash_errors, 0);
+        assert!(file.is_file());
+        assert_eq!(
+            library.track(&TrackId("b".into())),
+            Err(AppError::TrackUnavailable)
+        );
+        assert_eq!(
+            library.view_rows(&view.view_id, 0, 3),
+            Err(AppError::ViewExpired)
+        );
     }
 
     #[test]

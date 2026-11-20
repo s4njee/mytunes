@@ -136,6 +136,34 @@ impl<'db> LibraryQueries<'db> {
         Ok(found)
     }
 
+    /// Resolve available files in snapshot order, retaining each original position.
+    pub fn playback_tracks(&self, ids: &[TrackId]) -> Result<Vec<(u32, FolderTrack)>, QueryError> {
+        let sql = format!(
+            "SELECT tracks.id, tracks.file_path, tracks.title,
+                    CASE WHEN trim(album) <> '' THEN
+                        json_array(album, {ALBUM_DISPLAY_ARTIST}, year, compilation)
+                    END,
+                    requested.key
+               FROM json_each(?1) AS requested
+               JOIN tracks ON tracks.id = requested.value
+              WHERE tracks.missing = 0
+              ORDER BY requested.key",
+        );
+        let mut statement = self.db.prepare_cached(&sql)?;
+        let rows = statement.query_map([serde_json::to_string(ids)?], |row| {
+            Ok((
+                row.get(4)?,
+                FolderTrack {
+                    id: read_track_id(row)?,
+                    path: PathBuf::from(row.get::<_, String>(1)?),
+                    title: row.get(2)?,
+                    album_key: row.get(3)?,
+                },
+            ))
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     /// Returns stored playlist members in position order, including repeated tracks.
     pub fn playlist_track_ids(&self, playlist: &PlaylistId) -> Result<Vec<TrackId>, QueryError> {
         let mut statement = self.db.prepare_cached(

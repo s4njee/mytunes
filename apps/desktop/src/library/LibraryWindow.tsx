@@ -1,26 +1,17 @@
 import { For, Show } from "solid-js";
-import type {
-  ColumnPreference_Serialize,
-  ImportSettings,
-  ScanProgress,
-  TrackColumn,
-  TrackSort,
-  WindowTheme,
-} from "../bindings";
+import type { ImportSettings, ScanProgress, WindowTheme } from "../bindings";
+import { formatTrackTime, ResizeHandle } from "./controls";
 import { Icon, type IconName } from "./Icon";
+import {
+  defaultColumnVisible,
+  type Track,
+  type TrackTableProps,
+  trackColumns,
+  VirtualTable,
+} from "./VirtualTable";
 import "./library.css";
 
-export interface Track {
-  id: string;
-  name: string;
-  seconds: number;
-  artist: string;
-  album: string;
-  genre: string;
-  rating: number;
-  plays: number;
-  checked: boolean;
-}
+export type { Track } from "./VirtualTable";
 
 export interface Facet {
   label: string;
@@ -35,11 +26,8 @@ export interface SourceGroup {
 
 export type Theme = "light" | "dark";
 
-interface WindowProps {
-  tracks: readonly Track[];
-  track?: Track;
+interface WindowProps extends TrackTableProps {
   artworkTrack?: Track;
-  selectedId: string;
   sources: readonly SourceGroup[];
   activeSource: string;
   facets: readonly Facet[];
@@ -60,20 +48,13 @@ interface WindowProps {
   onCopyFiles?: (enabled: boolean) => void;
   onWatchFolder?: () => void;
   onRemoveWatch?: (path: string) => void;
-  sort?: TrackSort;
-  columnPreferences?: ColumnPreference_Serialize[];
   sidebarWidth?: number | null;
   browserHeight?: number | null;
   onSidebarResize?: (width: number) => void;
   onBrowserResize?: (height: number) => void;
-  onColumnResize?: (column: TrackColumn, width: number) => void;
-  onColumnVisibility?: (column: TrackColumn, visible: boolean) => void;
-  onSort?: (sort: TrackSort) => void;
   summary: string;
   onSource?: (source: string) => void;
   onFacet?: (label: string, value: string) => void;
-  onSelect: (track: Track) => void;
-  onPlayTrack?: (track: Track) => void;
   onTogglePlaying?: () => void;
   onPrevious?: () => void;
   onNext?: () => void;
@@ -83,10 +64,6 @@ interface WindowProps {
   onToggleArtwork: () => void;
   onToggleBrowser: () => void;
   onTheme: (theme: WindowTheme) => void;
-}
-
-export function formatTrackTime(seconds: number) {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
 function Transport(props: WindowProps) {
@@ -228,44 +205,6 @@ function Toolbar(props: WindowProps) {
   );
 }
 
-function ResizeHandle(props: { axis: "x" | "y"; label: string; onResize: (size: number) => void }) {
-  let start: { point: number; size: number } | undefined;
-  const position = (event: PointerEvent) => (props.axis === "x" ? event.clientX : event.clientY);
-  const dimension = (handle: HTMLButtonElement) => {
-    const bounds = handle.parentElement?.getBoundingClientRect();
-    return Math.round((props.axis === "x" ? bounds?.width : bounds?.height) ?? 0);
-  };
-  return (
-    <button
-      type="button"
-      class={`resize-handle resize-${props.axis}`}
-      aria-label={props.label}
-      onPointerDown={(event) => {
-        if (event.button !== 0) return;
-        start = { point: position(event), size: dimension(event.currentTarget) };
-        event.currentTarget.setPointerCapture(event.pointerId);
-      }}
-      onPointerUp={(event) => {
-        if (!start) return;
-        const change = Math.round(position(event) - start.point);
-        if (change) props.onResize(start.size + change);
-        start = undefined;
-      }}
-      onPointerCancel={() => {
-        start = undefined;
-      }}
-      onKeyDown={(event) => {
-        const less = props.axis === "x" ? "ArrowLeft" : "ArrowUp";
-        const more = props.axis === "x" ? "ArrowRight" : "ArrowDown";
-        if (event.key === less || event.key === more) {
-          event.preventDefault();
-          props.onResize(dimension(event.currentTarget) + (event.key === less ? -8 : 8));
-        }
-      }}
-    />
-  );
-}
-
 function SourceList(props: WindowProps) {
   return (
     <aside class="library-sidebar" aria-label="Library sidebar">
@@ -360,176 +299,6 @@ function ColumnBrowser(props: WindowProps) {
   );
 }
 
-const columns = [
-  { key: "checked", label: "Include in sync", width: "checkbox", numeric: false },
-  { key: "title", label: "Name", width: "name", numeric: false },
-  { key: "duration", label: "Time", width: "time", numeric: true },
-  { key: "artist", label: "Artist", width: "artist", numeric: false },
-  { key: "album", label: "Album", width: "album", numeric: false },
-  { key: "genre", label: "Genre", width: "genre", numeric: false },
-  { key: "rating", label: "Rating", width: "rating", numeric: false },
-  { key: "play_count", label: "Plays", width: "plays", numeric: true },
-] as const;
-
-type VisibleColumn = (typeof columns)[number]["key"];
-
-function TrackCell(props: WindowProps & { row: Track; column: VisibleColumn }) {
-  const row = () => props.row;
-  switch (props.column) {
-    case "checked":
-      return (
-        <td class="include-track">
-          <input type="checkbox" checked={row().checked} aria-label={`Sync ${row().name}`} />
-        </td>
-      );
-    case "title":
-      return (
-        <td>
-          <button
-            type="button"
-            class="track-name"
-            aria-current={row().id === props.selectedId ? "true" : undefined}
-            onClick={() => props.onSelect(row())}
-            onDblClick={() => props.onPlayTrack?.(row())}
-          >
-            <span class="track-speaker">
-              <Show when={row().id === props.track?.id && props.playing}>
-                <Icon name="speaker" />
-              </Show>
-            </span>
-            <span>{row().name}</span>
-          </button>
-        </td>
-      );
-    case "duration":
-      return <td class="track-numeric">{formatTrackTime(row().seconds)}</td>;
-    case "artist":
-    case "album":
-    case "genre": {
-      const field = props.column;
-      return <td title={row()[field]}>{row()[field]}</td>;
-    }
-    case "rating":
-      return (
-        <td>
-          <span class="rating" role="img" aria-label={`${row().rating} out of 5 stars`}>
-            <span aria-hidden="true">{"★".repeat(row().rating)}</span>
-            <span class="rating-empty" aria-hidden="true">
-              {"★".repeat(5 - row().rating)}
-            </span>
-          </span>
-        </td>
-      );
-    case "play_count":
-      return <td class="track-numeric">{row().plays}</td>;
-  }
-}
-
-function TrackListing(props: WindowProps) {
-  const preference = (column: TrackColumn) =>
-    props.columnPreferences?.find((item) => item.column === column);
-  const visible = () => columns.filter((column) => preference(column.key)?.visible !== false);
-  const direction = (column: TrackColumn) =>
-    props.sort?.column === column ? props.sort.direction : undefined;
-  return (
-    <div class="track-scroll">
-      <table class="track-table" aria-label="Songs">
-        <colgroup>
-          <For each={visible()}>
-            {(column) => (
-              <col
-                class={`track-${column.width}-column`}
-                style={{
-                  width: preference(column.key)?.width
-                    ? `${preference(column.key)?.width}px`
-                    : undefined,
-                }}
-              />
-            )}
-          </For>
-        </colgroup>
-        <thead>
-          <tr>
-            <For each={visible()}>
-              {(column) => (
-                <th
-                  scope="col"
-                  class={column.numeric ? "track-numeric" : undefined}
-                  aria-sort={
-                    direction(column.key) ??
-                    (!props.onSort && column.key === "title" ? "ascending" : undefined)
-                  }
-                  aria-label={column.key === "checked" ? column.label : undefined}
-                >
-                  <Show
-                    when={props.onSort && column.key !== "checked"}
-                    fallback={
-                      column.key === "checked" ? (
-                        <Icon name="check" />
-                      ) : (
-                        <span class="column-name">
-                          {column.label}
-                          <Show when={column.key === "title"}>
-                            <Icon name="arrow" />
-                          </Show>
-                        </span>
-                      )
-                    }
-                  >
-                    <button
-                      type="button"
-                      class="column-name"
-                      onClick={() =>
-                        props.onSort?.({
-                          column: column.key,
-                          direction:
-                            direction(column.key) === "ascending" ? "descending" : "ascending",
-                        })
-                      }
-                    >
-                      {column.label}
-                      <Show when={direction(column.key)}>
-                        <Icon name="arrow" />
-                      </Show>
-                    </button>
-                  </Show>
-                  <Show when={props.onColumnResize}>
-                    {(resize) => (
-                      <ResizeHandle
-                        axis="x"
-                        label={`Resize ${column.label} column`}
-                        onResize={(value) => resize()(column.key, value)}
-                      />
-                    )}
-                  </Show>
-                </th>
-              )}
-            </For>
-          </tr>
-        </thead>
-        <tbody>
-          <Show when={props.tracks.length === 0}>
-            <tr>
-              <td class="empty-library" colspan={Math.max(1, visible().length)}>
-                No songs in this view
-              </td>
-            </tr>
-          </Show>
-          <For each={props.tracks}>
-            {(track) => (
-              <tr class={track.id === props.selectedId ? "selected" : undefined}>
-                <For each={visible()}>
-                  {(column) => <TrackCell {...props} row={track} column={column.key} />}
-                </For>
-              </tr>
-            )}
-          </For>
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 function StatusBar(props: WindowProps) {
   return (
     <footer class="library-status">
@@ -601,14 +370,14 @@ function StatusBar(props: WindowProps) {
             {(visible) => (
               <fieldset class="column-options">
                 <legend>Columns</legend>
-                <For each={columns}>
+                <For each={trackColumns}>
                   {(column) => (
                     <label>
                       <input
                         type="checkbox"
                         checked={
                           props.columnPreferences?.find((item) => item.column === column.key)
-                            ?.visible !== false
+                            ?.visible ?? defaultColumnVisible(column)
                         }
                         onChange={(event) => visible()(column.key, event.currentTarget.checked)}
                       />
@@ -681,7 +450,7 @@ export function LibraryWindow(props: WindowProps) {
           <Show when={props.showBrowser}>
             <ColumnBrowser {...props} />
           </Show>
-          <TrackListing {...props} />
+          <VirtualTable {...props} />
         </main>
       </div>
       <StatusBar {...props} />

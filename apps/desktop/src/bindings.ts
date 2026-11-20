@@ -26,6 +26,18 @@ export const commands = {
 	importAddWatch: (options?: InvokeOptions) => typedError<ImportSettings_Serialize | null, AppError>(__TAURI_INVOKE("import_add_watch", undefined, options)),
 	/**  Stop watching a folder and discard its pending rescan. */
 	importRemoveWatch: (path: string, options?: InvokeOptions) => typedError<ImportSettings_Serialize, AppError>(__TAURI_INVOKE("import_remove_watch", { path }, options)),
+	/**  Start playing the selected track in the current view order. */
+	playView: (viewId: string, index: number, options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("play_view", { viewId, index }, options)),
+	/**  Toggle play and pause in the current queue. */
+	playerToggle: (options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("player_toggle", undefined, options)),
+	/**  Get the current tags for a track, including a track outside the viewport. */
+	trackGet: (id: TrackId, options?: InvokeOptions) => typedError<TrackRow_Serialize, AppError>(__TAURI_INVOKE("track_get", { id }, options)),
+	/**  Change whether the track is included in sync. */
+	trackSetChecked: (id: TrackId, checked: boolean, options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("track_set_checked", { id, checked }, options)),
+	/**  Reveal a known track in the platform file manager. */
+	trackReveal: (id: TrackId, options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("track_reveal", { id }, options)),
+	/**  Remove selected positions from a current library view. */
+	tracksRemove: (viewId: string, indexes: number[], trashFiles: boolean, options?: InvokeOptions) => typedError<RemovalOutcome, AppError>(__TAURI_INVOKE("tracks_remove", { viewId, indexes, trashFiles }, options)),
 	/**  Subscribe to the current transport snapshot and subsequent player events. */
 	subscribePlayer: (channel: Channel<PlayerEvent_Deserialize>, options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("subscribe_player", { channel }, options)),
 	/**  Subscribe to library scan progress. */
@@ -53,6 +65,10 @@ maximum: number } |
 { kind: "library" } |
 /**  A folder cannot be monitored for filesystem changes. */
 { kind: "watch_folder" } |
+/**  A track's file is unavailable or the selection is stale. */
+{ kind: "track_unavailable" } |
+/**  Opening, decoding, or controlling the player failed. */
+{ kind: "playback" } |
 /**  A desktop service could not handle the request. */
 { kind: "unavailable" };
 
@@ -173,6 +189,12 @@ export type Pong = {
 	message: string,
 	/**  The core version that answered. */
 	core_version: string,
+};
+
+/**  Result of removing tracks and optionally moving their files to Trash. */
+export type RemovalOutcome = {
+	/**  Files that could not be moved to Trash. */
+	trash_errors: number,
 };
 
 /**  Current progress for a scan. */

@@ -20,6 +20,7 @@ test("the LCD shows import progress and the library keeps the duplicate notice",
         return null;
       }
       if (command === "import_settings_get") return { copy_files: false, watched_folders: [] };
+      if (command === "subscribe_player") return null;
       if (command === "window_settings_get") return {};
       if (command === "view_open") return { view_id: "1", count: 0, revision: 0 };
       if (command === "view_rows") return [];
@@ -59,6 +60,7 @@ test("the desktop renders saved settings and updates the backend when appearance
     (command, args) => {
       if (command === "window_settings_get") return settings;
       if (command === "import_settings_get") return { copy_files: false, watched_folders: [] };
+      if (command === "subscribe_player") return null;
       if (command === "subscribe_scan") return null;
       if (command === "window_settings_save") {
         saved.push(args);

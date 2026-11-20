@@ -8,7 +8,7 @@ import {
   type ViewSpec_Deserialize,
 } from "../bindings";
 
-const pageSize = 200;
+export const LIBRARY_PAGE_SIZE = 200;
 const cachedPages = 8;
 type Page = Awaited<ReturnType<typeof commands.viewRows>>;
 
@@ -51,7 +51,7 @@ export class LibraryPages {
 
   async pageFor(row: number): Promise<Page> {
     if (this.#expired) return expired();
-    const offset = Math.floor(row / pageSize) * pageSize;
+    const offset = Math.floor(row / LIBRARY_PAGE_SIZE) * LIBRARY_PAGE_SIZE;
     const cached = this.#pages.get(offset);
     if (cached) {
       this.#pages.delete(offset);
@@ -61,7 +61,7 @@ export class LibraryPages {
     const pending = this.#pending.get(offset);
     if (pending) return pending;
     const request = commands
-      .viewRows(this.view.view_id, offset, pageSize)
+      .viewRows(this.view.view_id, offset, LIBRARY_PAGE_SIZE)
       .then((page): Page => {
         if (this.#expired) return expired();
         if (page.status === "ok") {
