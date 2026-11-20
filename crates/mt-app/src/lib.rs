@@ -5,6 +5,7 @@
 
 pub mod import;
 pub mod library;
+pub mod playback;
 mod settings;
 pub mod window;
 

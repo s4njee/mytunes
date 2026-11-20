@@ -32,6 +32,8 @@ export const commands = {
 	playView: (viewId: string, index: number, options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("play_view", { viewId, index }, options)),
 	/**  Toggle play and pause in the current queue. */
 	playerToggle: (options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("player_toggle", undefined, options)),
+	/**  Control the desktop transport. */
+	playerControl: (action: PlayerAction, options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("player_control", { action }, options)),
 	/**  Get the current tags for a track, including a track outside the viewport. */
 	trackGet: (id: TrackId, options?: InvokeOptions) => typedError<TrackRow_Serialize, AppError>(__TAURI_INVOKE("track_get", { id }, options)),
 	/**  Change whether the track is included in sync. */
@@ -157,6 +159,9 @@ export type OpenedView = {
 	revision: number,
 };
 
+/**  Transport actions shared by the window and system media controls. */
+export type PlayerAction = { kind: "play" } | { kind: "pause" } | { kind: "toggle" } | { kind: "next" } | { kind: "previous" } | { kind: "stop" } | { kind: "seek"; position_ms: number } | { kind: "volume"; percent: number };
+
 /**  Snapshot emitted on changes and at 4 Hz during playback. */
 export type PlayerEvent = PlayerEvent_Serialize | PlayerEvent_Deserialize;
 
@@ -168,8 +173,18 @@ export type PlayerEvent_Deserialize = {
 	position_ms: number,
 	/**  Identifier of the track described by this event. */
 	track_id?: TrackId | null,
+	/**  Index in the original queue, including repeated track IDs. */
+	queue_index?: number | null,
+	/**  Identity of the current pass through a queue entry. */
+	pass: number,
+	/**  Milliseconds delivered for this pass, excluding seeks and paused time. */
+	played_ms: number,
+	/**  Current volume on a 0–100 scale. */
+	volume_percent: number,
 	/**  This track reached its natural end. */
 	ended: boolean,
+	/**  The user moved away from a track before playback reached its end. */
+	skipped: boolean,
 	/**  A playback or command error, when applicable. */
 	error?: string | null,
 };
@@ -182,8 +197,18 @@ export type PlayerEvent_Serialize = {
 	position_ms: number,
 	/**  Identifier of the track described by this event. */
 	track_id: TrackId | null,
+	/**  Index in the original queue, including repeated track IDs. */
+	queue_index: number | null,
+	/**  Identity of the current pass through a queue entry. */
+	pass: number,
+	/**  Milliseconds delivered for this pass, excluding seeks and paused time. */
+	played_ms: number,
+	/**  Current volume on a 0–100 scale. */
+	volume_percent: number,
 	/**  This track reached its natural end. */
 	ended: boolean,
+	/**  The user moved away from a track before playback reached its end. */
+	skipped: boolean,
 	/**  A playback or command error, when applicable. */
 	error: string | null,
 };

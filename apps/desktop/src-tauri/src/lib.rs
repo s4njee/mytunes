@@ -6,6 +6,8 @@
 mod artwork;
 pub mod events;
 mod import;
+mod media;
+mod playback;
 mod tracks;
 
 use std::sync::Arc;
@@ -14,6 +16,7 @@ use events::{
     DesktopChannels, DeviceOnline, LibraryChanged, ScanUpdate, SyncProgress, ToggleColumnBrowser,
 };
 use import::ImportService;
+use media::DesktopMedia;
 use mt_app::{
     BrowserFacets, TrackRow,
     library::{AppError, DesktopLibrary, OpenedView, ViewSpec},
@@ -21,6 +24,7 @@ use mt_app::{
 };
 use mt_audio::PlayerEvent;
 use mt_types::Pong;
+use playback::DesktopPlayer;
 use tauri::{
     DragDropEvent, Manager, RunEvent, State, Url, WebviewWindowBuilder, WindowEvent, async_runtime,
     ipc::Channel,
@@ -153,8 +157,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             import::import_set_copy,
             import::import_add_watch,
             import::import_remove_watch,
-            tracks::play_view,
-            tracks::player_toggle,
+            playback::play_view,
+            playback::player_toggle,
+            playback::player_control,
             tracks::track_get,
             tracks::track_set_checked,
             tracks::track_reveal,
@@ -280,13 +285,21 @@ pub fn run() {
             });
         })
         .manage(DesktopChannels::default())
-        .manage(tracks::DesktopPlayer::default())
         .setup(move |app| {
             let data = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data)?;
             let data = data.canonicalize()?;
             let db_path = data.join("library.sqlite");
             let library = DesktopLibrary::open(&db_path)?;
+            let playback_session = library.playback_session().unwrap_or_else(|error| {
+                eprintln!("could not read the saved queue: {error}");
+                Default::default()
+            });
+            let _ = app.state::<DesktopChannels>().player.publish(PlayerEvent {
+                volume_percent: playback_session.volume_percent.min(100),
+                ..PlayerEvent::default()
+            });
+            app.manage(DesktopPlayer::new(playback_session));
             app.manage(Arc::new(library));
             let music = app.path().audio_dir().unwrap_or_else(|_| data.clone());
             let music = music.canonicalize().unwrap_or(music);
@@ -310,6 +323,12 @@ pub fn run() {
             let main = WebviewWindowBuilder::from_config(app, window)?
                 .on_navigation(move |url| local_navigation(url, dev.as_ref()))
                 .build()?;
+            match DesktopMedia::start(app.handle(), &main) {
+                Ok(controls) => {
+                    app.manage(controls);
+                }
+                Err(error) => eprintln!("could not start system media controls: {error}"),
+            }
             let handle = app.handle().clone();
             main.on_window_event(move |event| {
                 if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
@@ -320,6 +339,12 @@ pub fn run() {
                 eprintln!("could not restore the desktop window: {error}");
             }
             main.show()?;
+            let handle = app.handle().clone();
+            async_runtime::spawn_blocking(move || {
+                if let Err(error) = handle.state::<DesktopPlayer>().restore(&handle) {
+                    eprintln!("could not restore the saved queue: {error}");
+                }
+            });
             Ok(())
         })
         .build(tauri::generate_context!());
@@ -328,6 +353,13 @@ pub fn run() {
         Ok(app) => app.run(|handle, event| {
             if let RunEvent::Exit = event {
                 handle.state::<ImportService>().stop();
+                let library = handle.state::<Arc<DesktopLibrary>>();
+                if let Err(error) = handle.state::<DesktopPlayer>().shutdown(&library) {
+                    eprintln!("could not save the playback session: {error}");
+                }
+                if let Some(media) = handle.try_state::<DesktopMedia>() {
+                    media.stop();
+                }
             }
         }),
         Err(e) => {

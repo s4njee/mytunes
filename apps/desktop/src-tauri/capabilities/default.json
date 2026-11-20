@@ -17,6 +17,7 @@
     "allow-import-remove-watch",
     "allow-play-view",
     "allow-player-toggle",
+    "allow-player-control",
     "allow-track-get",
     "allow-track-set-checked",
     "allow-track-reveal",

@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import type { BrowserOption, ImportSettings, ScanProgress, WindowTheme } from "../bindings";
 import { ColumnBrowser, type Facet, type FacetLabel } from "./ColumnBrowser";
 import { formatTrackTime, ResizeHandle } from "./controls";
@@ -64,6 +64,8 @@ interface WindowProps extends TrackTableProps {
 }
 
 function Transport(props: WindowProps) {
+  const [volumeDraft, setVolumeDraft] = createSignal<number>();
+  const volume = () => volumeDraft() ?? props.volume;
   return (
     <section class="transport" aria-label="Playback controls">
       <div class="transport-buttons">
@@ -72,7 +74,7 @@ function Transport(props: WindowProps) {
           class="control"
           aria-label="Previous track"
           disabled={!props.onPrevious}
-          onClick={props.onPrevious}
+          onClick={() => props.onPrevious?.()}
         >
           <Icon name="previous" solid />
         </button>
@@ -90,7 +92,7 @@ function Transport(props: WindowProps) {
           class="control"
           aria-label="Next track"
           disabled={!props.onNext}
-          onClick={props.onNext}
+          onClick={() => props.onNext?.()}
         >
           <Icon name="next" solid />
         </button>
@@ -101,9 +103,13 @@ function Transport(props: WindowProps) {
           type="range"
           aria-label="Volume"
           disabled={!props.onVolume}
-          value={props.volume}
-          style={{ "--range-progress": `${props.volume}%` }}
-          onInput={(event) => props.onVolume?.(event.currentTarget.valueAsNumber)}
+          value={volume()}
+          style={{ "--range-progress": `${volume()}%` }}
+          onInput={(event) => setVolumeDraft(event.currentTarget.valueAsNumber)}
+          onChange={(event) => {
+            props.onVolume?.(event.currentTarget.valueAsNumber);
+            setVolumeDraft(undefined);
+          }}
         />
       </label>
     </section>
@@ -111,6 +117,8 @@ function Transport(props: WindowProps) {
 }
 
 function PlaybackDisplay(props: WindowProps) {
+  const [seekDraft, setSeekDraft] = createSignal<number>();
+  const position = () => seekDraft() ?? props.position;
   return (
     <section class="playback-display" aria-label={props.scanProgress ? "Import" : "Now playing"}>
       <div class="display-badge" aria-hidden="true">
@@ -132,18 +140,22 @@ function PlaybackDisplay(props: WindowProps) {
                 </Show>
               </div>
               <div class="display-progress">
-                <span>{formatTrackTime(props.position)}</span>
+                <span>{formatTrackTime(position())}</span>
                 <input
                   type="range"
                   min={0}
                   max={props.track?.seconds || 1}
                   disabled={!props.onPosition || !props.track}
-                  value={props.position}
+                  value={position()}
                   style={{
-                    "--range-progress": `${(100 * props.position) / (props.track?.seconds || 1)}%`,
+                    "--range-progress": `${(100 * position()) / (props.track?.seconds || 1)}%`,
                   }}
                   aria-label="Playback position"
-                  onInput={(event) => props.onPosition?.(event.currentTarget.valueAsNumber)}
+                  onInput={(event) => setSeekDraft(event.currentTarget.valueAsNumber)}
+                  onChange={(event) => {
+                    props.onPosition?.(event.currentTarget.valueAsNumber);
+                    setSeekDraft(undefined);
+                  }}
                 />
                 <span>{formatTrackTime(props.track?.seconds ?? 0)}</span>
               </div>

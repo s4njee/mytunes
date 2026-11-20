@@ -97,10 +97,39 @@ pub struct PlayerEvent {
     pub position_ms: u64,
     /// Identifier of the track described by this event.
     pub track_id: Option<TrackId>,
+    /// Index in the original queue, including repeated track IDs.
+    pub queue_index: Option<u32>,
+    /// Identity of the current pass through a queue entry.
+    #[specta(type = specta_typescript::Number)]
+    pub pass: u64,
+    /// Milliseconds delivered for this pass, excluding seeks and paused time.
+    #[specta(type = specta_typescript::Number)]
+    pub played_ms: u64,
+    /// Current volume on a 0–100 scale.
+    pub volume_percent: u8,
     /// This track reached its natural end.
     pub ended: bool,
+    /// The user moved away from a track before playback reached its end.
+    pub skipped: bool,
     /// A playback or command error, when applicable.
     pub error: Option<String>,
+}
+
+impl Default for PlayerEvent {
+    fn default() -> Self {
+        Self {
+            state: PlayerState::Empty,
+            position_ms: 0,
+            track_id: None,
+            queue_index: None,
+            pass: 0,
+            played_ms: 0,
+            volume_percent: 100,
+            ended: false,
+            skipped: false,
+            error: None,
+        }
+    }
 }
 
 /// Failure to start or control the playback worker.
@@ -313,6 +342,8 @@ struct Transport<T> {
     order: PlayOrder,
     current: Option<Marker>,
     position_ms: u64,
+    heard_before_seek_ms: u64,
+    pass: u64,
     markers: VecDeque<Marker>,
     submitted: u64,
     source: Option<Source>,
@@ -345,6 +376,8 @@ impl<T: PlaybackOutput> Transport<T> {
             order: PlayOrder::default(),
             current: None,
             position_ms: 0,
+            heard_before_seek_ms: 0,
+            pass: 0,
             markers: VecDeque::new(),
             submitted: 0,
             source: None,
@@ -406,17 +439,21 @@ impl<T: PlaybackOutput> Transport<T> {
                 Ok(())
             }
             Command::Toggle => self.play(),
-            Command::Seek(ms) => self.move_to(self.selected()?, ms),
+            Command::Seek(ms) => self.move_to(self.selected()?, ms, true),
             Command::Next => self.navigate(true),
             Command::Prev => self.navigate(false),
             Command::Eq(gains) => self.effects(DspSettings {
                 eq_db: gains,
                 ..self.settings
             }),
-            Command::Volume(volume) => self.effects(DspSettings {
-                volume,
-                ..self.settings
-            }),
+            Command::Volume(volume) => {
+                self.effects(DspSettings {
+                    volume,
+                    ..self.settings
+                })?;
+                self.emit(false, None);
+                Ok(())
+            }
             Command::Flags(flags) => self.flags(flags),
             Command::Shuffle(mode) => self.shuffle(mode),
             Command::Repeat(mode) => self.repeat(mode),
@@ -435,6 +472,7 @@ impl<T: PlaybackOutput> Transport<T> {
             self.order = PlayOrder::default();
             self.current = None;
             self.position_ms = 0;
+            self.heard_before_seek_ms = 0;
             self.state = PlayerState::Empty;
             self.emit(false, None);
             return Ok(());
@@ -444,7 +482,8 @@ impl<T: PlaybackOutput> Transport<T> {
         }
         let order = PlayOrder::new(items, self.shuffle, index);
         let source = self.prepare(&order, index, 0)?;
-        self.install(source, index, 0, PlayerState::Paused)?;
+        self.emit_skip();
+        self.install(source, index, 0, PlayerState::Paused, false)?;
         self.order = order;
         self.emit(false, None);
         Ok(())
@@ -453,7 +492,7 @@ impl<T: PlaybackOutput> Transport<T> {
     fn play(&mut self) -> Result<(), PlayerError> {
         let item = self.selected()?;
         if matches!(self.state, PlayerState::Ended | PlayerState::Error) {
-            self.move_to(item, 0)?;
+            self.move_to(item, 0, false)?;
         }
         if self.state != PlayerState::Playing {
             self.fill()?;
@@ -483,12 +522,11 @@ impl<T: PlaybackOutput> Transport<T> {
 
     fn navigate(&mut self, next: bool) -> Result<(), PlayerError> {
         let item = self.selected()?;
-        let target = if !next && self.position_ms > 4_000 {
-            item
-        } else {
-            self.order.neighbor(item, next).ok_or(PlayerError::Empty)?
-        };
-        self.move_to(target, 0)
+        if !next && self.position_ms > 4_000 {
+            return self.move_to(item, 0, true);
+        }
+        let target = self.order.neighbor(item, next).ok_or(PlayerError::Empty)?;
+        self.move_to(target, 0, false)
     }
 
     fn effects(&mut self, settings: DspSettings) -> Result<(), PlayerError> {
@@ -503,7 +541,13 @@ impl<T: PlaybackOutput> Transport<T> {
                 let mut order = self.order.clone();
                 order.shuffle(mode, current.item);
                 let source = self.prepare(&order, current.item, self.position_ms)?;
-                self.install(source, current.item, self.position_ms, self.motion_state())?;
+                self.install(
+                    source,
+                    current.item,
+                    self.position_ms,
+                    self.motion_state(),
+                    true,
+                )?;
                 self.order = order;
                 self.emit(false, None);
             }
@@ -523,7 +567,13 @@ impl<T: PlaybackOutput> Transport<T> {
                     self.gapless,
                     self.output.spec(),
                 )?;
-                self.install(source, current.item, self.position_ms, self.motion_state())?;
+                self.install(
+                    source,
+                    current.item,
+                    self.position_ms,
+                    self.motion_state(),
+                    true,
+                )?;
                 self.emit(false, None);
             }
             self.repeat = mode;
@@ -549,7 +599,13 @@ impl<T: PlaybackOutput> Transport<T> {
                 flags.gapless,
                 self.output.spec(),
             )?;
-            self.install(source, current.item, self.position_ms, self.motion_state())?;
+            self.install(
+                source,
+                current.item,
+                self.position_ms,
+                self.motion_state(),
+                true,
+            )?;
             self.emit(false, None);
         }
         self.gapless = flags.gapless;
@@ -580,9 +636,12 @@ impl<T: PlaybackOutput> Transport<T> {
         )
     }
 
-    fn move_to(&mut self, item: usize, position_ms: u64) -> Result<(), PlayerError> {
+    fn move_to(&mut self, item: usize, position_ms: u64, resume: bool) -> Result<(), PlayerError> {
         let source = self.prepare(&self.order, item, position_ms)?;
-        self.install(source, item, position_ms, self.motion_state())?;
+        if !resume {
+            self.emit_skip();
+        }
+        self.install(source, item, position_ms, self.motion_state(), resume)?;
         self.emit(false, None);
         Ok(())
     }
@@ -603,8 +662,14 @@ impl<T: PlaybackOutput> Transport<T> {
         item: usize,
         position_ms: u64,
         state: PlayerState,
+        resume: bool,
     ) -> Result<(), PlayerError> {
+        let heard = if resume { self.played_ms() } else { 0 };
         self.clear()?;
+        self.heard_before_seek_ms = heard;
+        if !resume {
+            self.pass = self.pass.saturating_add(1);
+        }
         self.dsp.set_replay_gain(source.queue.initial_replay_gain());
         self.dsp.reset();
         self.current = Some(Marker {
@@ -731,7 +796,13 @@ impl<T: PlaybackOutput> Transport<T> {
                 self.position_at(marker.frame);
                 self.emit(true, None);
                 self.current = Some(marker);
-                self.position_at(delivered);
+                self.heard_before_seek_ms = 0;
+                self.pass = self.pass.saturating_add(1);
+                let next = self
+                    .markers
+                    .front()
+                    .map_or(delivered, |next| delivered.min(next.frame));
+                self.position_at(next);
                 self.emit(false, None);
             }
         }
@@ -755,13 +826,39 @@ impl<T: PlaybackOutput> Transport<T> {
                 .current
                 .and_then(|marker| self.order.items.get(marker.item))
                 .map(|item| item.id.clone()),
+            queue_index: self
+                .current
+                .and_then(|marker| u32::try_from(marker.item).ok()),
+            pass: self.pass,
+            played_ms: self.played_ms(),
+            volume_percent: (self.settings.volume * 100.0).round() as u8,
             ended,
+            skipped: false,
             error,
         }
     }
 
     fn emit(&mut self, ended: bool, error: Option<String>) {
-        let event = self.event(ended, error);
+        self.publish(self.event(ended, error));
+    }
+
+    fn played_ms(&self) -> u64 {
+        self.current.map_or(0, |marker| {
+            self.heard_before_seek_ms
+                .saturating_add(self.position_ms.saturating_sub(marker.position_ms))
+        })
+    }
+
+    fn emit_skip(&mut self) {
+        if matches!(self.state, PlayerState::Playing | PlayerState::Paused) && self.played_ms() > 0
+        {
+            let mut event = self.event(false, None);
+            event.skipped = true;
+            self.publish(event);
+        }
+    }
+
+    fn publish(&mut self, event: PlayerEvent) {
         self.subscribers
             .retain(|events| events.send(event.clone()).is_ok());
     }
@@ -870,6 +967,32 @@ mod tests {
                 }
             })
             .to_vec()
+    }
+
+    #[test]
+    fn a_seek_preserves_audible_time_without_counting_the_position_jump() {
+        let directory = tempfile::tempdir().expect("create playback fixture directory");
+        let mut transport = Transport::new(TestOutput::default()).expect("open test player");
+        transport
+            .command(Command::Load(tracks(directory.path(), 480_000), 0))
+            .expect("load queue");
+        transport.command(Command::Play).expect("start track");
+        transport.output.consume(4_800);
+        transport.update_position();
+        let before = transport.event(false, None);
+        assert_eq!(before.played_ms, 100);
+
+        transport
+            .command(Command::Seek(4_000))
+            .expect("seek in track");
+        let after = transport.event(false, None);
+        assert_eq!(after.position_ms, 4_000);
+        assert_eq!(after.played_ms, 100);
+        assert_eq!(after.pass, before.pass);
+        transport.fill().expect("fill test output");
+        transport.output.consume(4_800);
+        transport.update_position();
+        assert_eq!(transport.event(false, None).played_ms, 200);
     }
 
     fn current(player: &Transport<TestOutput>) -> (&str, u64) {

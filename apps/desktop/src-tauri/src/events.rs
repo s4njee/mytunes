@@ -3,7 +3,7 @@
 use std::sync::Mutex;
 
 use mt_app::library::AppError;
-use mt_audio::{PlayerEvent, PlayerState};
+use mt_audio::PlayerEvent;
 use mt_meta::scan::ScanProgress;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -90,6 +90,10 @@ impl<T: Clone + Serialize> DesktopStream<T> {
         Ok(())
     }
 
+    pub(crate) fn latest(&self) -> Option<T> {
+        self.0.lock().ok()?.latest.clone()
+    }
+
     /// Send a service update to the current webview and remember it for resubscription.
     ///
     /// # Errors
@@ -122,11 +126,8 @@ impl Default for DesktopChannels {
     fn default() -> Self {
         Self {
             player: DesktopStream::new(Some(PlayerEvent {
-                state: PlayerState::Empty,
-                position_ms: 0,
-                track_id: None,
-                ended: false,
-                error: None,
+                volume_percent: 65,
+                ..PlayerEvent::default()
             })),
             scan: DesktopStream::new(None),
             sync: DesktopStream::new(None),
@@ -137,6 +138,7 @@ impl Default for DesktopChannels {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mt_audio::PlayerState;
     use std::sync::mpsc;
 
     #[test]
@@ -162,6 +164,7 @@ mod tests {
             track_id: None,
             ended: false,
             error: None,
+            ..PlayerEvent::default()
         };
         streams
             .player

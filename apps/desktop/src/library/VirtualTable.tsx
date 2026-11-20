@@ -29,6 +29,7 @@ export interface TrackTableProps {
   trackCount?: number;
   trackAt?: (index: number) => Track | undefined;
   trackViewId?: string;
+  trackScrollKey?: string;
   onTrackWindow?: (first: number, end: number) => void;
   onPlayIndex?: (index: number) => void;
   onToggleTrackPlayback?: (index: number) => void;
@@ -229,10 +230,15 @@ export function VirtualTable(props: TrackTableProps) {
   };
   onCleanup(() => resize?.disconnect());
   createEffect(
-    () => props.trackViewId,
+    () => props.trackScrollKey,
     () => {
       if (viewport) viewport.scrollTop = 0;
       setScrollTop(0);
+    },
+  );
+  createEffect(
+    () => props.trackViewId,
+    () => {
       setCursor(-1);
       setSelected(new Set<number>());
       anchor = -1;

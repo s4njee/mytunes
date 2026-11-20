@@ -6,6 +6,7 @@ import {
   commands,
   events,
   type ImportSettings,
+  type PlayerAction,
   type PlayerEvent_Deserialize,
   type ScanUpdate,
   type TrackColumn,
@@ -64,6 +65,7 @@ export function App() {
     rows: [] as TrackRow_Serialize[],
   });
   const [openedView, setOpenedView] = createSignal<LibraryPages["view"]>();
+  const [trackScrollKey, setTrackScrollKey] = createSignal("");
   const [selectedRow, setSelectedRow] = createSignal<TrackRow_Serialize>();
   const [player, setPlayer] = createSignal<PlayerEvent_Deserialize>();
   const [playingTrack, setPlayingTrack] = createSignal<TrackRow_Serialize>();
@@ -214,6 +216,10 @@ export function App() {
     }
   }
 
+  function controlPlayer(action: PlayerAction) {
+    void trackAction(() => commands.playerControl(action), "Could not change playback.");
+  }
+
   async function removeTracks(viewId: string, indexes: number[], trash: boolean) {
     setActionNotice("");
     try {
@@ -288,6 +294,7 @@ export function App() {
     currentRevision = result.data.view.revision;
     pageRequest = "";
     setVisibleRows({ offset: 0, rows: [] });
+    setTrackScrollKey(JSON.stringify(spec));
     setOpenedView(result.data.view);
     const total = result.data.view.count.toLocaleString();
     setSummary(`${total} ${result.data.view.count === 1 ? "song" : "songs"}`);
@@ -441,6 +448,7 @@ export function App() {
       tracks={[]}
       trackCount={openedView()?.count ?? 0}
       trackViewId={openedView()?.view_id}
+      trackScrollKey={trackScrollKey()}
       trackAt={(index) => displayRows()[index - visibleRows().offset]}
       onTrackWindow={(first, end) => void loadVisible(first, end)}
       onPlayIndex={playIndex}
@@ -482,7 +490,11 @@ export function App() {
       playing={player()?.state === "playing"}
       position={Math.floor((player()?.position_ms ?? 0) / 1_000)}
       onTogglePlaying={() => togglePlaying()}
-      volume={65}
+      onPrevious={player()?.track_id ? () => controlPlayer({ kind: "previous" }) : undefined}
+      onNext={player()?.track_id ? () => controlPlayer({ kind: "next" }) : undefined}
+      onPosition={(seconds) => controlPlayer({ kind: "seek", position_ms: seconds * 1_000 })}
+      volume={player()?.volume_percent ?? 65}
+      onVolume={(percent) => controlPlayer({ kind: "volume", percent })}
       artwork={selectedArtwork()}
       artworkTrack={artworkTrack()}
       showArtwork={settings()?.artwork_visible ?? true}

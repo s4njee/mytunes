@@ -14,11 +14,16 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::window::{self, WindowSettings};
+use crate::{
+    playback::{PlaybackChange, PlaybackSession},
+    settings,
+    window::{self, WindowSettings},
+};
 
 /// Maximum track rows in one response.
 pub const PAGE_SIZE: u32 = 200;
 const MAX_VIEWS: usize = 8;
+const PLAYBACK_KEY: &str = "desktop.playback";
 
 /// Errors returned by desktop commands.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Type, thiserror::Error)]
@@ -290,22 +295,64 @@ impl DesktopLibrary {
     ) -> Result<(Vec<QueueItem>, usize), AppError> {
         let state = self.state()?;
         let snapshot = state.snapshot(view_id)?;
-        let tracks = LibraryQueries::new(&state.db)
-            .playback_tracks(&snapshot.ids)
+        resolve_queue(&state.db, &snapshot.ids, index)
+    }
+
+    /// Rebuild the saved queue using the current file locations.
+    ///
+    /// # Errors
+    /// Returns an error if the saved track is no longer available.
+    pub fn restore_queue(
+        &self,
+        session: &PlaybackSession,
+    ) -> Result<(Vec<QueueItem>, usize), AppError> {
+        resolve_queue(&self.state()?.db, &session.queue, session.index)
+    }
+
+    /// Read the saved queue and transport state.
+    ///
+    /// # Errors
+    /// Returns a library error if the saved state cannot be read.
+    pub fn playback_session(&self) -> Result<PlaybackSession, AppError> {
+        settings::load(&self.state()?.db, PLAYBACK_KEY)
+    }
+
+    /// Persist playback state at shutdown.
+    ///
+    /// # Errors
+    /// Returns a library error if the state cannot be saved.
+    pub fn save_playback_session(&self, session: &PlaybackSession) -> Result<(), AppError> {
+        settings::save(&self.state()?.db, PLAYBACK_KEY, session)
+    }
+
+    /// Update the counters for the track and invalidate displayed changes.
+    ///
+    /// # Errors
+    /// Returns a library error if SQLite cannot record the counters.
+    pub fn record_playback(
+        &self,
+        id: &TrackId,
+        change: PlaybackChange,
+    ) -> Result<Option<u32>, AppError> {
+        let mut state = self.state()?;
+        let now = std::time::UNIX_EPOCH
+            .elapsed()
+            .ok()
+            .and_then(|duration| i64::try_from(duration.as_millis()).ok());
+        let updated = state
+            .db
+            .execute(
+                "UPDATE tracks SET play_count = play_count + ?1, skip_count = skip_count + ?2,
+                last_played_at = CASE WHEN ?1 AND ?3 IS NOT NULL THEN ?3 ELSE last_played_at END
+             WHERE id = ?4",
+                (change.play, change.skip, now, &id.0),
+            )
             .map_err(|_| AppError::Library)?;
-        let start = tracks
-            .iter()
-            .position(|(position, _)| *position == index)
-            .ok_or(AppError::TrackUnavailable)?;
-        let queue = tracks
-            .into_iter()
-            .map(|(_, track)| QueueItem {
-                id: track.id,
-                path: track.path,
-                album: track.album_key,
-            })
-            .collect();
-        Ok((queue, start))
+        if change.play && updated > 0 {
+            state.invalidate().map(Some)
+        } else {
+            Ok(None)
+        }
     }
 
     /// Read the current metadata of a track by its library identifier.
@@ -434,6 +481,32 @@ impl DesktopLibrary {
     pub fn artwork(&self, id: &str, size: ArtworkSize) -> Result<Option<Vec<u8>>, AppError> {
         artwork_thumbnail(&self.state()?.db, id, size).map_err(|_| AppError::Library)
     }
+}
+
+fn resolve_queue(
+    db: &Connection,
+    ids: &[TrackId],
+    index: u32,
+) -> Result<(Vec<QueueItem>, usize), AppError> {
+    if index as usize >= ids.len() {
+        return Err(AppError::TrackUnavailable);
+    }
+    let tracks = LibraryQueries::new(db)
+        .playback_tracks(ids)
+        .map_err(|_| AppError::Library)?;
+    let start = tracks
+        .iter()
+        .position(|(position, _)| *position == index)
+        .ok_or(AppError::TrackUnavailable)?;
+    let queue = tracks
+        .into_iter()
+        .map(|(_, track)| QueueItem {
+            id: track.id,
+            path: track.path,
+            album: track.album_key,
+        })
+        .collect();
+    Ok((queue, start))
 }
 
 #[cfg(test)]

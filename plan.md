@@ -438,6 +438,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC2: Media keys and OS integration via souvlaki in the Rust process: MPRIS on Linux (title, artist, art, position), Now Playing on macOS, SMTC on Windows.
   - AC3: A play increments `play_count` and sets `last_played_at` once ≥ 50% of the track or 4 minutes has played, whichever comes first. A skip increments `skip_count` when skipped after 2 s and before 20 s 🧪.
   - AC4: Playback continues when the window is minimized or hidden, because audio doesn't depend on the webview. Quitting saves the queue, track and position. Relaunch restores them paused.
+  - _Status 2026-11-20: Linux desktop transport, MPRIS, listening statistics, minimized playback and paused resume passed. The Apple Silicon build passed. Live macOS and Windows media controls and hosted CI are pending. See ADR-0025._
 - [ ] **E7.S7 Status bar & stats.** As a user, I want the iconic library summary so that I know the size of my collection.
   - AC1: Shows "N songs, X days/hours, Y GB" for the current view (selection-aware: "3 of 1,284 songs selected" style when > 1 selected). Computed in Rust.
   - AC2: Updates within 100 ms of a filter change.
