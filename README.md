@@ -3,11 +3,11 @@
 A retro music player in two parts, inspired by classic click-wheel players and the desktop jukebox apps they synced with:
 
 - **MyTunes Pod** (iOS / Android): a click-wheel player for the music on your phone. Drag around the ring to move through lists, press the centre to choose.
-- **MyTunes** (Linux / macOS / Windows): manages your music library and syncs a chosen subset to paired phones over Wi-Fi.
+- **MyTunes** (Linux / macOS / Windows): imports, organizes, and plays your music library. Wi-Fi sync to phones is planned.
 
 It works with local files only: no streaming, no accounts, no cloud, no telemetry.
 
-> **Status:** early development (milestone M0). Nothing is usable yet. See [`plan.md`](plan.md) for the roadmap.
+> **Status:** The desktop MVP is implemented and tested on Linux. Native macOS and Windows verification is pending. MyTunes Pod is in development. See [`plan.md`](plan.md) for the roadmap.
 
 ## Repository layout
 
