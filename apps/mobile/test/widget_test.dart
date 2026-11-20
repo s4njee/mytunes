@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:material_ui/material_ui.dart' show LicensePage;
+import 'package:material_ui/material_ui.dart' show LicensePage, MaterialApp;
 import 'package:mytunes_pod/main.dart';
 import 'package:mytunes_pod/pod_shell.dart';
 import 'package:mytunes_pod/theme/font_licences.dart';
@@ -66,6 +66,29 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.byType(LicensePage), findsOneWidget);
+  });
+
+  testWidgets('the import action requires a three-second hold', (tester) async {
+    var opens = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PodShell(
+          eyebrow: 'Library',
+          metadata: '0 songs · 0 albums',
+          display: const SizedBox.shrink(),
+          deck: const SizedBox.shrink(),
+          onEyebrowHold: () => opens++,
+        ),
+      ),
+    );
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('LIBRARY')),
+    );
+    await tester.pump(const Duration(milliseconds: 2999));
+    expect(opens, 0);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(opens, 1);
+    await gesture.up();
   });
 
   test(

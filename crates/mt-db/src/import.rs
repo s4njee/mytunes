@@ -347,7 +347,7 @@ fn scan_selection(
 }
 
 #[derive(Default)]
-struct PendingCopies(Vec<PathBuf>);
+pub(crate) struct PendingCopies(pub(crate) Vec<PathBuf>);
 
 impl Drop for PendingCopies {
     fn drop(&mut self) {
@@ -369,7 +369,7 @@ fn managed_path(media: &Path, source: &Path) -> Option<PathBuf> {
     )
 }
 
-fn copy_media(
+pub(crate) fn copy_media(
     source: &Path,
     destination: &Path,
     track: &mut ReadTrack,

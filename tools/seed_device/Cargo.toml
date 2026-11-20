@@ -1,0 +1,16 @@
+[package]
+name = "seed-device"
+description = "Populate a MyTunes Pod device library before sync is available."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow = "=1.0.104"
+mt-db = { workspace = true, features = ["device-seeding"] }
+
+[lints]
+workspace = true

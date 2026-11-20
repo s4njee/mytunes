@@ -4,6 +4,7 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'dev_import.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
@@ -34,6 +35,9 @@ abstract class DeviceLibrary implements RustOpaqueInterface {
 
   /// Close the database and stop the audio worker off the Dart isolate.
   Future<void> close();
+
+  /// Import audio chosen by the debug build's native picker.
+  Future<DevImportReport> importDevFiles({required List<String> paths});
 
   /// Count tracks, album groups, credited artists and playlists.
   Future<LibraryCounts> libraryCounts();

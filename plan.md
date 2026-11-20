@@ -468,6 +468,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
 - [ ] **E5.S3 Dev library seeding.** As a developer, I want to populate the phone without sync so that I can build M3 before M4.
   - AC1: Debug builds only: a hidden "Dev import" action (long-press the header eyebrow for 3 s) opens the OS file picker, copies the chosen files into the app sandbox and builds the device DB using `mt-meta` (the only place the phone reads tags; compiled out of release builds).
   - AC2: Alternatively `tools/seed_device` writes a device DB plus files that can be pushed with `adb push` or Xcode's container download.
+  - _Status 2026-11-20: Host seeding and the three-second debug import both populated an Android emulator library. Dart integration tests played and sought through a copied track. The Android release build preserved the library and disabled the import action. Hosted CI and native iOS verification remain open. See ADR-0029._
 - [ ] **E5.S4 Navigation stack.** As a user, I want MENU to go back like an iPod so that navigation is muscle memory.
   - AC1: A screen stack (not go_router routes). Screen change is a horizontal slide: forward slides left, back slides right, 220 ms ease-out.
   - AC2: **Per the handoff, MENU returns to the root Menu and resets selection to 0** for the v1 five-screen set. For the deeper tree in M5, MENU pops **one level**, and the selection of the parent is restored, as on a real iPod. Record the switch in an ADR when E10 lands.

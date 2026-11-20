@@ -182,7 +182,7 @@ pub fn scan_paths<E>(
                 match entry {
                     Ok(entry)
                         if entry.file_type().is_file()
-                            && supported(entry.path())
+                            && is_supported_audio_path(entry.path())
                             && include(entry.path()) =>
                     {
                         let path = entry.into_path();
@@ -263,7 +263,8 @@ fn update_estimate(discovered: &Mutex<(usize, PathBuf)>, progress: &mut ScanProg
     }
 }
 
-fn supported(path: &Path) -> bool {
+/// Whether a path has a supported scan extension. File contents are checked separately.
+pub fn is_supported_audio_path(path: &Path) -> bool {
     let Some(extension) = path.extension().and_then(|extension| extension.to_str()) else {
         return false;
     };

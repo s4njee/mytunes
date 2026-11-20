@@ -13,6 +13,9 @@ publish.workspace = true
 [lib]
 crate-type = ["cdylib", "staticlib", "rlib"]
 
+[features]
+dev-import = ["mt-db/device-seeding"]
+
 [dependencies]
 anyhow = "=1.0.104"
 blake3 = "=1.8.7"

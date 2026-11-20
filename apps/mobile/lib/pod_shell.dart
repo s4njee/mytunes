@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import 'theme/mt_theme.dart';
@@ -13,12 +14,14 @@ class PodShell extends StatelessWidget {
     required this.metadata,
     required this.display,
     required this.deck,
+    this.onEyebrowHold,
   });
 
   final String eyebrow;
   final String metadata;
   final Widget display;
   final Widget deck;
+  final VoidCallback? onEyebrowHold;
 
   @override
   Widget build(BuildContext context) {
@@ -57,13 +60,9 @@ class PodShell extends StatelessWidget {
                         child: Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                eyebrow.toUpperCase(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: MtType.eyebrow.copyWith(
-                                  color: colors.accent,
-                                ),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: _eyebrow(colors.accent),
                               ),
                             ),
                             const SizedBox(width: MtSpace.rowGap),
@@ -103,6 +102,30 @@ class PodShell extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _eyebrow(Color accent) {
+    final label = Text(
+      eyebrow.toUpperCase(),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: MtType.eyebrow.copyWith(color: accent),
+    );
+    final hold = onEyebrowHold;
+    if (hold == null) return label;
+    return RawGestureDetector(
+      behavior: HitTestBehavior.opaque,
+      gestures: {
+        LongPressGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+              () => LongPressGestureRecognizer(
+                duration: const Duration(seconds: 3),
+              ),
+              (recognizer) => recognizer.onLongPress = hold,
+            ),
+      },
+      child: label,
     );
   }
 }

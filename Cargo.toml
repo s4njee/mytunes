@@ -4,6 +4,7 @@ members = [
   "crates/*",
   "tools/gen-tokens",
   "tools/gen-fixtures",
+  "tools/seed_device",
   "apps/desktop/src-tauri",
 ]
 

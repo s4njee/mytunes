@@ -6,6 +6,7 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/dev_import.dart';
 import 'api/device.dart';
 import 'api/playback.dart';
 import 'api/simple.dart';
@@ -103,6 +104,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  DevImportReport dco_decode_dev_import_report(dynamic raw);
 
   @protected
   DeviceAlbum dco_decode_device_album(dynamic raw);
@@ -281,6 +285,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  DevImportReport sse_decode_dev_import_report(SseDeserializer deserializer);
 
   @protected
   DeviceAlbum sse_decode_device_album(SseDeserializer deserializer);
@@ -482,6 +489,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_dev_import_report(
+    DevImportReport self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_device_album(DeviceAlbum self, SseSerializer serializer);

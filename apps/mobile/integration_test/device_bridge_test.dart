@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -115,6 +116,46 @@ void main() {
       await library.close();
     }
   });
+
+  test(
+    'seeds a playable track and keeps its identity when reimported',
+    () async {
+      final folder = await Directory.systemTemp.createTemp('mytunes-seeding');
+      addTearDown(() => folder.delete(recursive: true));
+      final library = await openDeviceDb(path: '${folder.path}/device.sqlite');
+      final source = await File('${folder.path}/Fixture.wav')
+          .writeAsBytes(_silentWave());
+      try {
+        final first = await library.importDevFiles(paths: [source.path]);
+        expect(first.imported, 1);
+        expect(first.errors, isEmpty);
+        final tracks = await library.songs(
+          page: const LibraryPage(offset: 0, limit: 20),
+        );
+        final track = tracks.single;
+        expect(track.title, 'Fixture');
+        expect(track.durationMs, 3000);
+        final repeated = await library.importDevFiles(paths: [source.path]);
+        expect(repeated.unchanged, 1);
+        expect((await library.libraryCounts()).songs, 1);
+        await source.delete();
+
+        await library.loadQueue(trackIds: [track.id], startIndex: 0);
+        final queued = await library.playerEvents().first;
+        expect(queued.trackId, track.id);
+        expect(queued.state, PlaybackState.paused);
+        await library.play();
+        await library.seek(positionMs: BigInt.from(400));
+        final playing = await library.playerEvents().first;
+        expect(playing.trackId, track.id);
+        expect(playing.state, PlaybackState.playing);
+        expect(playing.positionMs.toInt(), greaterThanOrEqualTo(400));
+        await library.pause();
+      } finally {
+        await library.close();
+      }
+    },
+  );
 }
 
 Matcher _bridgeError(String text) => isA<AnyhowException>().having(
@@ -122,3 +163,23 @@ Matcher _bridgeError(String text) => isA<AnyhowException>().having(
   'message',
   contains(text),
 );
+
+Uint8List _silentWave() {
+  const sampleRate = 8000;
+  const pcmLength = 3 * sampleRate * 2;
+  final wave = ByteData(44 + pcmLength);
+  final bytes = wave.buffer.asUint8List();
+  bytes.setAll(0, 'RIFF'.codeUnits);
+  wave.setUint32(4, 36 + pcmLength, Endian.little);
+  bytes.setAll(8, 'WAVEfmt '.codeUnits);
+  wave.setUint32(16, 16, Endian.little);
+  wave.setUint16(20, 1, Endian.little);
+  wave.setUint16(22, 1, Endian.little);
+  wave.setUint32(24, sampleRate, Endian.little);
+  wave.setUint32(28, sampleRate * 2, Endian.little);
+  wave.setUint16(32, 2, Endian.little);
+  wave.setUint16(34, 16, Endian.little);
+  bytes.setAll(36, 'data'.codeUnits);
+  wave.setUint32(40, pcmLength, Endian.little);
+  return bytes;
+}
