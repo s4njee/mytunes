@@ -1,6 +1,8 @@
 import { Channel } from "@tauri-apps/api/core";
 import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import {
+  type BrowserFacets,
+  type BrowserOption,
   commands,
   events,
   type ImportSettings,
@@ -9,17 +11,16 @@ import {
   type TrackColumn,
   type TrackRow_Serialize,
   type TrackSort,
+  type ViewSpec_Deserialize,
   type WindowSettings_Serialize,
 } from "./bindings";
+import { type FacetLabel, facetLabels } from "./library/ColumnBrowser";
 import { artUrl, LIBRARY_PAGE_SIZE, type LibraryPages, openLibraryPages } from "./library/ipc";
-import { type Facet, LibraryWindow, type SourceGroup, type Track } from "./library/LibraryWindow";
+import { LibraryWindow, type SourceGroup, type Track } from "./library/LibraryWindow";
 
 const sources: SourceGroup[] = [{ label: "Library", sources: [{ name: "Music", icon: "music" }] }];
-const facets: Facet[] = ["Genre", "Artist", "Album"].map((label) => ({
-  label,
-  values: ["All"],
-  active: "All",
-}));
+type BrowseSelection = Record<FacetLabel, BrowserOption | null>;
+const emptyFacets: BrowserFacets = { genres: [], artists: [], albums: [] };
 
 function displayTrack(row: TrackRow_Serialize): Track {
   return {
@@ -47,6 +48,13 @@ function displayTrack(row: TrackRow_Serialize): Track {
 /** The desktop library window backed by the local Rust library. */
 export function App() {
   const [settings, setSettings] = createSignal<WindowSettings_Serialize>();
+  const [browser, setBrowser] = createSignal(emptyFacets);
+  const [selection, setSelection] = createSignal<BrowseSelection>({
+    Genre: null,
+    Artist: null,
+    Album: null,
+  });
+  const [search, setSearch] = createSignal("");
   const [importSettings, setImportSettings] = createSignal<ImportSettings>();
   const [scan, setScan] = createSignal<ScanUpdate>();
   const [preferenceBusy, setPreferenceBusy] = createSignal(false);
@@ -63,6 +71,11 @@ export function App() {
   const [summary, setSummary] = createSignal("Opening library…");
   let view: LibraryPages | undefined;
   let stopLibraryEvents: (() => void) | undefined;
+  let stopBrowserEvents: (() => void) | undefined;
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let committedSearch = "";
+  let facetRequest = "";
+  let currentRevision = 0;
   let generation = 0;
   let pageRequest = "";
   let disposed = false;
@@ -70,6 +83,71 @@ export function App() {
 
   function reportError(message: string) {
     setSummary(message);
+  }
+
+  function currentSpec(
+    sort: TrackSort | undefined = settings()?.sort,
+    choices = selection(),
+  ): ViewSpec_Deserialize {
+    return {
+      sort,
+      ...(committedSearch && { query: committedSearch }),
+      ...(choices.Genre && { genre: choices.Genre.name }),
+      ...(choices.Artist?.compilation && { compilation: true }),
+      ...(choices.Artist &&
+        !choices.Artist.compilation && {
+          artist: choices.Artist.name,
+          compilation: false,
+        }),
+      ...(choices.Album && { album: choices.Album.name }),
+    };
+  }
+
+  function applySearch(value: string) {
+    const query = value.trim();
+    if (query === committedSearch) return;
+    committedSearch = query;
+    void loadView().catch(() => reportError("Could not search the music library."));
+  }
+
+  function chooseFacet(label: FacetLabel, value: BrowserOption | null) {
+    const choices = { ...selection(), [label]: value };
+    if (label === "Genre") choices.Artist = null;
+    if (label !== "Album") choices.Album = null;
+    setSelection(choices);
+    void loadView(currentSpec(settings()?.sort, choices)).catch(() =>
+      reportError("Could not filter the music library."),
+    );
+  }
+
+  function loadFacets(spec: ViewSpec_Deserialize) {
+    const browse = { ...spec, sort: undefined, album: undefined };
+    const key = `${currentRevision}:${JSON.stringify(browse)}`;
+    if (key === facetRequest) return;
+    facetRequest = key;
+    void commands
+      .browserFacets(browse)
+      .then((result) => {
+        if (disposed || key !== facetRequest) return;
+        if (result.status === "ok") setBrowser(result.data);
+        else {
+          facetRequest = "";
+          setActionNotice("Could not read the column browser.");
+        }
+      })
+      .catch(() => {
+        if (!disposed && key === facetRequest) {
+          facetRequest = "";
+          setActionNotice("Could not read the column browser.");
+        }
+      });
+  }
+
+  function toggleBrowser() {
+    const current = settings();
+    if (!current) return;
+    updateSettings({ browser_visible: !current.browser_visible });
+    if (!current.browser_visible) loadFacets(currentSpec());
   }
 
   async function loadVisible(first: number, end: number) {
@@ -194,9 +272,9 @@ export function App() {
     return messages.join(" · ");
   };
 
-  async function loadView(sort: TrackSort | undefined = settings()?.sort) {
+  async function loadView(spec = currentSpec()) {
     const request = ++generation;
-    const result = await openLibraryPages({ sort });
+    const result = await openLibraryPages(spec);
     if (result.status === "error") {
       if (request === generation) reportError("Could not open the music library.");
       return;
@@ -207,11 +285,13 @@ export function App() {
     }
     view?.close();
     view = result.data;
+    currentRevision = result.data.view.revision;
     pageRequest = "";
     setVisibleRows({ offset: 0, rows: [] });
     setOpenedView(result.data.view);
     const total = result.data.view.count.toLocaleString();
     setSummary(`${total} ${result.data.view.count === 1 ? "song" : "songs"}`);
+    if (settings()?.browser_visible ?? true) loadFacets(spec);
   }
 
   createEffect(
@@ -258,6 +338,12 @@ export function App() {
           return;
         }
         stopLibraryEvents = stop;
+        const stopBrowse = await events.toggleColumnBrowser.listen(toggleBrowser);
+        if (disposed) {
+          stopBrowse();
+          return;
+        }
+        stopBrowserEvents = stopBrowse;
         await loadView();
       };
       void initialize().catch(() => reportError("Could not open the music library."));
@@ -294,7 +380,18 @@ export function App() {
     generation += 1;
     view?.close();
     stopLibraryEvents?.();
+    stopBrowserEvents?.();
+    clearTimeout(searchTimer);
+    document.removeEventListener("keydown", searchShortcut);
   });
+
+  function searchShortcut(event: KeyboardEvent) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      document.getElementById("library-search")?.focus();
+    }
+  }
+  document.addEventListener("keydown", searchShortcut);
 
   const updateSettings = (patch: Partial<WindowSettings_Serialize>) => {
     const current = settings();
@@ -364,7 +461,23 @@ export function App() {
       selectedId={selectedRow()?.id ?? ""}
       sources={sources}
       activeSource="Music"
-      facets={facets}
+      facets={facetLabels.map((label, index) => ({
+        label,
+        values: [browser().genres, browser().artists, browser().albums][index] ?? [],
+        active: selection()[label],
+      }))}
+      onFacet={chooseFacet}
+      searchQuery={search()}
+      onSearch={(query) => {
+        setSearch(query);
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => applySearch(query), 80);
+      }}
+      onClearSearch={() => {
+        setSearch("");
+        clearTimeout(searchTimer);
+        applySearch("");
+      }}
       track={nowPlaying()}
       playing={player()?.state === "playing"}
       position={Math.floor((player()?.position_ms ?? 0) / 1_000)}
@@ -422,10 +535,12 @@ export function App() {
       onSelect={(track) => setSelectedRow(visibleRows().rows.find((row) => row.id === track.id))}
       onSort={(sort) => {
         updateSettings({ sort });
-        void loadView(sort).catch(() => reportError("Could not sort the music library."));
+        void loadView(currentSpec(sort)).catch(() =>
+          reportError("Could not sort the music library."),
+        );
       }}
       onToggleArtwork={() => updateSettings({ artwork_visible: !settings()?.artwork_visible })}
-      onToggleBrowser={() => updateSettings({ browser_visible: !settings()?.browser_visible })}
+      onToggleBrowser={toggleBrowser}
       onTheme={(theme) => updateSettings({ theme })}
     />
   );

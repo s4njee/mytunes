@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashSet};
 
 use mt_types::{PlaylistId, TrackId};
 use rusqlite::Row;
@@ -162,8 +162,71 @@ pub struct TrackFilter<'a> {
     pub genre: Option<&'a str>,
     /// Track artist or the compilation group `Various Artists`.
     pub artist: Option<&'a str>,
+    /// When set, distinguish tagged compilations from ordinary artist names.
+    pub compilation: Option<bool>,
     /// Album title shown in the column browser.
     pub album: Option<&'a str>,
+}
+
+/// A classification offered by the column browser.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Type)]
+pub struct BrowserOption {
+    /// The tag's exact value, or “Compilations” for compilation tracks.
+    pub name: String,
+    /// Whether this represents the compilation group.
+    pub compilation: bool,
+}
+
+/// Browser options in genre, artist and album order.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Type)]
+pub struct BrowserFacets {
+    /// Genres in the current source and search.
+    pub genres: Vec<BrowserOption>,
+    /// Artists and compilations under the selected genre.
+    pub artists: Vec<BrowserOption>,
+    /// Albums under the selected genre and artist.
+    pub albums: Vec<BrowserOption>,
+}
+
+fn track_scope<'a>(
+    search: TrackSearch<'a>,
+    filter: TrackFilter<'a>,
+) -> (String, Vec<Cow<'a, str>>) {
+    let mut sql = String::from(" FROM tracks");
+    if filter.playlist.is_some() {
+        sql.push_str(" JOIN playlist_items ON playlist_items.track_id = tracks.id");
+    }
+    let expression = search.expression();
+    if expression.is_some() {
+        sql.push_str(" JOIN tracks_fts ON tracks.rowid = tracks_fts.rowid");
+    }
+    let mut args = Vec::new();
+    for (condition, value) in [
+        ("tracks_fts MATCH ?", expression),
+        (
+            "playlist_items.playlist_id = ?",
+            filter.playlist.map(|id| Cow::Borrowed(id.0.as_str())),
+        ),
+        ("tracks.genre = ?", filter.genre.map(Cow::Borrowed)),
+        (
+            "(CASE WHEN tracks.compilation THEN 'Various Artists' ELSE tracks.artist END) = ?",
+            filter.artist.map(Cow::Borrowed),
+        ),
+        (
+            "tracks.compilation = CAST(? AS INTEGER)",
+            filter
+                .compilation
+                .map(|compilation| Cow::Borrowed(if compilation { "1" } else { "0" })),
+        ),
+        ("tracks.album = ?", filter.album.map(Cow::Borrowed)),
+    ] {
+        if let Some(value) = value {
+            sql.push_str(if args.is_empty() { " WHERE " } else { " AND " });
+            sql.push_str(condition);
+            args.push(value);
+        }
+    }
+    (sql, args)
 }
 
 /// Metadata needed to render one row in the desktop track list.
@@ -269,35 +332,44 @@ impl LibraryQueries<'_> {
         search: TrackSearch<'_>,
         filter: TrackFilter<'_>,
     ) -> Result<Vec<TrackId>, QueryError> {
-        let mut sql = String::from("SELECT tracks.id FROM tracks");
-        if filter.playlist.is_some() {
-            sql.push_str(" JOIN playlist_items ON playlist_items.track_id = tracks.id");
-        }
-        let expression = search.expression();
-        if expression.is_some() {
-            sql.push_str(" JOIN tracks_fts ON tracks.rowid = tracks_fts.rowid");
-        }
+        self.ordered_tracks(sort, search, filter, read_track_id)
+    }
 
-        let mut args = Vec::new();
-        for (condition, value) in [
-            ("tracks_fts MATCH ?", expression.as_deref()),
-            (
-                "playlist_items.playlist_id = ?",
-                filter.playlist.map(|id| id.0.as_str()),
-            ),
-            ("tracks.genre = ?", filter.genre),
-            (
-                "(CASE WHEN tracks.compilation THEN 'Various Artists' ELSE tracks.artist END) = ?",
-                filter.artist,
-            ),
-            ("tracks.album = ?", filter.album),
-        ] {
-            if let Some(value) = value {
-                sql.push_str(if args.is_empty() { " WHERE " } else { " AND " });
-                sql.push_str(condition);
-                args.push(value);
-            }
-        }
+    /// Materialize the base view order alongside the FTS row identifier.
+    pub fn ordered_track_keys(
+        &self,
+        sort: Option<TrackSort>,
+        filter: TrackFilter<'_>,
+    ) -> Result<Vec<(TrackId, i64)>, QueryError> {
+        self.ordered_tracks(sort, TrackSearch::All, filter, |row| {
+            Ok((read_track_id(row)?, row.get(1)?))
+        })
+    }
+
+    /// Find matching rows without sorting them again.
+    pub fn matching_row_ids(
+        &self,
+        search: TrackSearch<'_>,
+    ) -> Result<Option<HashSet<i64>>, QueryError> {
+        let Some(expression) = search.expression() else {
+            return Ok(None);
+        };
+        let mut statement = self
+            .db
+            .prepare_cached("SELECT rowid FROM tracks_fts WHERE tracks_fts MATCH ?1")?;
+        let rows = statement.query_map([expression.as_ref()], |row| row.get(0))?;
+        Ok(Some(rows.collect::<rusqlite::Result<_>>()?))
+    }
+
+    fn ordered_tracks<T>(
+        &self,
+        sort: Option<TrackSort>,
+        search: TrackSearch<'_>,
+        filter: TrackFilter<'_>,
+        read: impl FnMut(&Row<'_>) -> rusqlite::Result<T>,
+    ) -> Result<Vec<T>, QueryError> {
+        let (scope, args) = track_scope(search, filter);
+        let mut sql = format!("SELECT tracks.id, tracks.rowid{scope}");
         sql.push_str(" ORDER BY ");
         if sort.is_none() && filter.playlist.is_some() {
             sql.push_str("playlist_items.position");
@@ -305,7 +377,72 @@ impl LibraryQueries<'_> {
             sql.push_str(&sort.unwrap_or_default().order_by());
         }
         let mut statement = self.db.prepare_cached(&sql)?;
-        let rows = statement.query_map(rusqlite::params_from_iter(args), read_track_id)?;
+        let rows = statement.query_map(
+            rusqlite::params_from_iter(args.iter().map(Cow::as_ref)),
+            read,
+        )?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// List progressively narrower choices for the current browser.
+    pub fn browser_facets(
+        &self,
+        search: TrackSearch<'_>,
+        filter: TrackFilter<'_>,
+    ) -> Result<BrowserFacets, QueryError> {
+        let source = TrackFilter {
+            playlist: filter.playlist,
+            ..TrackFilter::default()
+        };
+        Ok(BrowserFacets {
+            genres: self.browser_options(
+                search,
+                source,
+                "tracks.genre",
+                "0",
+                "tracks.genre COLLATE mytunes_unicode_v1",
+            )?,
+            artists: self.browser_options(
+                search,
+                TrackFilter { genre: filter.genre, ..source },
+                "CASE WHEN tracks.compilation THEN 'Compilations' ELSE tracks.artist END",
+                "tracks.compilation",
+                &format!("CASE WHEN tracks.compilation THEN 'Compilations' ELSE {ARTIST_SORT} END COLLATE mytunes_unicode_v1"),
+            )?,
+            albums: self.browser_options(
+                search,
+                TrackFilter { album: None, ..filter },
+                "tracks.album",
+                "0",
+                ALBUM_SORT,
+            )?,
+        })
+    }
+
+    fn browser_options(
+        &self,
+        search: TrackSearch<'_>,
+        filter: TrackFilter<'_>,
+        name: &str,
+        compilation: &str,
+        sort: &str,
+    ) -> Result<Vec<BrowserOption>, QueryError> {
+        let (mut scope, args) = track_scope(search, filter);
+        scope.push_str(if args.is_empty() { " WHERE " } else { " AND " });
+        let sql = format!(
+            "SELECT {name} AS name, {compilation} AS compilation {scope} trim({name}) <> ''
+                 GROUP BY 1, 2 ORDER BY compilation DESC, min({sort}) COLLATE mytunes_unicode_v1, name",
+        );
+        let mut statement = self.db.prepare_cached(&sql)?;
+        let rows = statement.query_map(
+            rusqlite::params_from_iter(args.iter().map(Cow::as_ref)),
+            |row| {
+                Ok(BrowserOption {
+                    name: row.get(0)?,
+                    compilation: row.get(1)?,
+                })
+            },
+        )?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 

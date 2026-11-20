@@ -39,6 +39,10 @@ pub struct LibraryChanged {
     pub revision: u32,
 }
 
+/// Requested by the native View menu.
+#[derive(Clone, Debug, Deserialize, Serialize, Type, Event)]
+pub struct ToggleColumnBrowser;
+
 /// Notifies the UI when a paired device becomes reachable.
 #[derive(Clone, Debug, Deserialize, Serialize, Type, Event)]
 pub struct DeviceOnline {

@@ -9,7 +9,7 @@ mod settings;
 pub mod window;
 
 pub use mt_db::ArtworkSize;
-pub use mt_db::queries::TrackRow;
+pub use mt_db::queries::{BrowserFacets, TrackRow};
 
 use mt_types::Pong;
 

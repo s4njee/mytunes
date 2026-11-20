@@ -252,7 +252,7 @@ const facetValues = [
       "Window Seat",
     ],
   },
-];
+] as const;
 
 export function DesktopMock() {
   const param = new URLSearchParams(window.location.search).get("theme");
@@ -291,10 +291,15 @@ export function DesktopMock() {
       selectedId={selected()}
       sources={sources}
       activeSource={source()}
-      facets={facetValues.map((facet) => ({
-        ...facet,
-        active: activeFacets()[facet.label] ?? facet.values[0] ?? "",
-      }))}
+      facets={facetValues.map(({ label, values: [allLabel, ...values] }) => {
+        const name = activeFacets()[label];
+        return {
+          label,
+          allLabel,
+          values: values.map((name) => ({ name, compilation: false })),
+          active: name ? { name, compilation: false } : null,
+        };
+      })}
       playing={playing()}
       position={position()}
       volume={volume()}
@@ -304,7 +309,7 @@ export function DesktopMock() {
       theme={theme()}
       summary="1,284 songs, 3.4 days, 8.12 GB"
       onSource={(name) => setSource(name)}
-      onFacet={(label, value) => setFacets((old) => ({ ...old, [label]: value }))}
+      onFacet={(label, value) => setFacets((old) => ({ ...old, [label]: value?.name ?? "" }))}
       onSelect={(song) => setSelected(song.id)}
       onPlayTrack={playTrack}
       onTogglePlaying={() => setPlaying((active) => !active)}

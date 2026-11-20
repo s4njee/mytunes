@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js";
-import type { ImportSettings, ScanProgress, WindowTheme } from "../bindings";
+import type { BrowserOption, ImportSettings, ScanProgress, WindowTheme } from "../bindings";
+import { ColumnBrowser, type Facet, type FacetLabel } from "./ColumnBrowser";
 import { formatTrackTime, ResizeHandle } from "./controls";
 import { Icon, type IconName } from "./Icon";
 import {
@@ -12,12 +13,6 @@ import {
 import "./library.css";
 
 export type { Track } from "./VirtualTable";
-
-export interface Facet {
-  label: string;
-  values: readonly string[];
-  active: string;
-}
 
 export interface SourceGroup {
   label: string;
@@ -54,13 +49,15 @@ interface WindowProps extends TrackTableProps {
   onBrowserResize?: (height: number) => void;
   summary: string;
   onSource?: (source: string) => void;
-  onFacet?: (label: string, value: string) => void;
+  onFacet?: (label: FacetLabel, value: BrowserOption | null) => void;
   onTogglePlaying?: () => void;
   onPrevious?: () => void;
   onNext?: () => void;
   onPosition?: (seconds: number) => void;
   onVolume?: (level: number) => void;
+  searchQuery?: string;
   onSearch?: (query: string) => void;
+  onClearSearch?: () => void;
   onToggleArtwork: () => void;
   onToggleBrowser: () => void;
   onTheme: (theme: WindowTheme) => void;
@@ -186,9 +183,17 @@ function Toolbar(props: WindowProps) {
           <Icon name="search" />
           <input
             type="search"
+            id="library-search"
+            value={props.searchQuery}
             aria-label="Search library"
             placeholder="Search library"
             onInput={(event) => props.onSearch?.(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && props.onClearSearch) {
+                props.onClearSearch();
+                event.preventDefault();
+              }
+            }}
           />
         </label>
         <button
@@ -264,38 +269,6 @@ function SourceList(props: WindowProps) {
         {(resize) => <ResizeHandle axis="x" label="Resize sidebar" onResize={resize()} />}
       </Show>
     </aside>
-  );
-}
-
-function ColumnBrowser(props: WindowProps) {
-  return (
-    <section class="column-browser" aria-label="Column browser">
-      <For each={props.facets}>
-        {(facet) => (
-          <section class="facet" aria-label={facet.label}>
-            <h2>{facet.label}</h2>
-            <ul>
-              <For each={facet.values}>
-                {(value) => (
-                  <li>
-                    <button
-                      type="button"
-                      aria-pressed={facet.active === value ? "true" : "false"}
-                      onClick={() => props.onFacet?.(facet.label, value)}
-                    >
-                      {value}
-                    </button>
-                  </li>
-                )}
-              </For>
-            </ul>
-          </section>
-        )}
-      </For>
-      <Show when={props.onBrowserResize}>
-        {(resize) => <ResizeHandle axis="y" label="Resize column browser" onResize={resize()} />}
-      </Show>
-    </section>
   );
 }
 
@@ -448,7 +421,11 @@ export function LibraryWindow(props: WindowProps) {
         <SourceList {...props} />
         <main class="library-content" aria-label="Music library">
           <Show when={props.showBrowser}>
-            <ColumnBrowser {...props} />
+            <ColumnBrowser
+              facets={props.facets}
+              onSelect={props.onFacet}
+              onResize={props.onBrowserResize}
+            />
           </Show>
           <VirtualTable {...props} />
         </main>

@@ -432,6 +432,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC1: The browser (View ▸ Show Column Browser) filters progressively: Genre → Artist → Album. "All (n)" rows at the top. Compilations are grouped under "Compilations" in Artist.
   - AC2: The search box filters the table as you type (FTS5 prefix match across fields, 80 ms debounce). Results for 50k tracks arrive in < 50 ms 🧪.
   - AC3: Ctrl/⌘+F focuses search. Esc clears it.
+  - _Status 2026-11-19: Native Linux browser and search checks passed. A prefix matching 50,000 tracks returned the ordered snapshot and first page in 46–49 ms after debounce. Hosted CI is pending. See ADR-0024._
 - [ ] **E7.S6 Playback integration.** As a user, I want playback controls and OS media integration so that it behaves like a real player.
   - AC1: Transport buttons, seek in the LCD panel (click and drag), volume slider, all wired to `mt-audio` in the backend.
   - AC2: Media keys and OS integration via souvlaki in the Rust process: MPRIS on Linux (title, artist, art, position), Now Playing on macOS, SMTC on Windows.

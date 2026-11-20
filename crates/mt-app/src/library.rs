@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
 use mt_audio::QueueItem;
-use mt_db::queries::{LibraryQueries, TrackFilter, TrackRow, TrackSearch, TrackSort};
+use mt_db::queries::{
+    BrowserFacets, LibraryQueries, TrackFilter, TrackRow, TrackSearch, TrackSort,
+};
 use mt_db::{ArtworkSize, artwork_thumbnail, open_desktop};
 use mt_types::{PlaylistId, TrackId};
 use rusqlite::Connection;
@@ -49,7 +51,7 @@ pub enum AppError {
 }
 
 /// The source of a track view.
-#[derive(Clone, Debug, Default, Deserialize, Serialize, Type)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ViewSource {
     /// The whole music library.
@@ -63,7 +65,7 @@ pub enum ViewSource {
 }
 
 /// The source, sort, and filters used to build a library snapshot.
-#[derive(Clone, Debug, Default, Deserialize, Serialize, Type)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize, Type)]
 #[serde(default)]
 pub struct ViewSpec {
     /// Library or playlist membership.
@@ -76,8 +78,32 @@ pub struct ViewSpec {
     pub genre: Option<String>,
     /// Selected artist in the column browser, if any.
     pub artist: Option<String>,
+    /// Limit to tagged compilations or ordinary tracks when an artist is selected.
+    pub compilation: Option<bool>,
     /// Selected album in the column browser, if any.
     pub album: Option<String>,
+}
+
+impl ViewSpec {
+    fn filter(&self) -> TrackFilter<'_> {
+        let playlist = match &self.source {
+            ViewSource::Library => None,
+            ViewSource::Playlist { playlist_id } => Some(playlist_id),
+        };
+        TrackFilter {
+            playlist,
+            genre: self.genre.as_deref(),
+            artist: self.artist.as_deref(),
+            compilation: self.compilation,
+            album: self.album.as_deref(),
+        }
+    }
+
+    fn search(&self) -> TrackSearch<'_> {
+        self.query
+            .as_deref()
+            .map_or(TrackSearch::All, TrackSearch::Prefix)
+    }
 }
 
 /// Handle to an ordered snapshot retained in the backend.
@@ -105,6 +131,7 @@ struct ViewSnapshot {
 
 struct LibraryState {
     db: Connection,
+    base_order: Option<(ViewSpec, Vec<(TrackId, i64)>)>,
     views: VecDeque<ViewSnapshot>,
     revision: u32,
     next_id: u64,
@@ -120,13 +147,17 @@ impl LibraryState {
 
     fn invalidate(&mut self) -> Result<u32, AppError> {
         self.revision = self.revision.checked_add(1).ok_or(AppError::Unavailable)?;
+        self.base_order = None;
         self.views.clear();
         Ok(self.revision)
     }
 }
 
 /// The open desktop library and its active views.
-pub struct DesktopLibrary(Mutex<LibraryState>);
+pub struct DesktopLibrary {
+    state: Mutex<LibraryState>,
+    browser: Mutex<Connection>,
+}
 
 impl DesktopLibrary {
     /// Open or initialize the SQLite library at a desktop app-data path.
@@ -134,16 +165,21 @@ impl DesktopLibrary {
     /// # Errors
     /// Returns a library error if SQLite cannot open or migrate the file.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, AppError> {
-        Ok(Self(Mutex::new(LibraryState {
-            db: open_desktop(path).map_err(|_| AppError::Library)?,
-            views: VecDeque::new(),
-            revision: 0,
-            next_id: 0,
-        })))
+        let path = path.as_ref();
+        Ok(Self {
+            state: Mutex::new(LibraryState {
+                db: open_desktop(path).map_err(|_| AppError::Library)?,
+                base_order: None,
+                views: VecDeque::new(),
+                revision: 0,
+                next_id: 0,
+            }),
+            browser: Mutex::new(open_desktop(path).map_err(|_| AppError::Library)?),
+        })
     }
 
     fn state(&self) -> Result<MutexGuard<'_, LibraryState>, AppError> {
-        self.0.lock().map_err(|_| AppError::Unavailable)
+        self.state.lock().map_err(|_| AppError::Unavailable)
     }
 
     /// Create a stable order of track IDs at the current library revision.
@@ -152,25 +188,30 @@ impl DesktopLibrary {
     /// Returns an error if the library cannot create the view.
     pub fn view_open(&self, spec: &ViewSpec) -> Result<OpenedView, AppError> {
         let mut state = self.state()?;
-        let playlist = match &spec.source {
-            ViewSource::Library => None,
-            ViewSource::Playlist { playlist_id } => Some(playlist_id),
-        };
-        let filter = TrackFilter {
-            playlist,
-            genre: spec.genre.as_deref(),
-            artist: spec.artist.as_deref(),
-            album: spec.album.as_deref(),
-        };
-        let ids = LibraryQueries::new(&state.db)
-            .track_ids_in(
-                spec.sort,
-                spec.query
-                    .as_deref()
-                    .map_or(TrackSearch::All, TrackSearch::Prefix),
-                filter,
-            )
+        let mut base = spec.clone();
+        base.query = None;
+        if base.source == ViewSource::Library {
+            base.sort = Some(base.sort.unwrap_or_default());
+        }
+        if state
+            .base_order
+            .as_ref()
+            .is_none_or(|(existing, _)| *existing != base)
+        {
+            let sorted = LibraryQueries::new(&state.db)
+                .ordered_track_keys(base.sort, base.filter())
+                .map_err(|_| AppError::Library)?;
+            state.base_order = Some((base, sorted));
+        }
+        let matches = LibraryQueries::new(&state.db)
+            .matching_row_ids(spec.search())
             .map_err(|_| AppError::Library)?;
+        let (_, sorted) = state.base_order.as_ref().ok_or(AppError::Library)?;
+        let ids: Vec<_> = sorted
+            .iter()
+            .filter(|(_, rowid)| matches.as_ref().is_none_or(|set| set.contains(rowid)))
+            .map(|(id, _)| id.clone())
+            .collect();
         let opened = OpenedView {
             view_id: state.next_id.to_string(),
             count: u32::try_from(ids.len()).map_err(|_| AppError::Library)?,
@@ -185,6 +226,20 @@ impl DesktopLibrary {
             ids,
         });
         Ok(opened)
+    }
+
+    /// Return the progressively filtered browser choices.
+    ///
+    /// # Errors
+    /// Returns an error if the browser cannot query the library.
+    pub fn browser_facets(&self, spec: &ViewSpec) -> Result<BrowserFacets, AppError> {
+        let mut db = self.browser.lock().map_err(|_| AppError::Unavailable)?;
+        let snapshot = db.transaction().map_err(|_| AppError::Library)?;
+        let facets = LibraryQueries::new(&snapshot)
+            .browser_facets(spec.search(), spec.filter())
+            .map_err(|_| AppError::Library)?;
+        snapshot.commit().map_err(|_| AppError::Library)?;
+        Ok(facets)
     }
 
     /// Read a bounded page in the snapshot's original track order.
@@ -408,6 +463,57 @@ mod tests {
 
     fn track_ids(rows: Vec<TrackRow>) -> Vec<String> {
         rows.into_iter().map(|row| row.id.0).collect()
+    }
+
+    #[test]
+    fn browser_refines_facets_and_distinguishes_tagged_compilations() {
+        let (_dir, library) = library_with_tracks();
+        library
+            .state()
+            .expect("lock library")
+            .db
+            .execute(
+                "INSERT INTO tracks (id, file_path, title, artist, album, genre)
+                      VALUES ('d', '/d', 'Blue Lantern', 'Compilations', 'Light', 'Jazz')",
+                [],
+            )
+            .expect("add an artist whose name matches the compilation group");
+        let spec = ViewSpec {
+            query: Some("blue".into()),
+            genre: Some("Jazz".into()),
+            compilation: Some(true),
+            ..ViewSpec::default()
+        };
+        let facets = library.browser_facets(&spec).expect("load browser facets");
+        assert_eq!(
+            facets
+                .genres
+                .iter()
+                .map(|item| item.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Electronic", "Jazz"]
+        );
+        assert_eq!(
+            facets
+                .artists
+                .iter()
+                .map(|item| (&*item.name, item.compilation))
+                .collect::<Vec<_>>(),
+            [("Compilations", true), ("Compilations", false)]
+        );
+        assert_eq!(
+            facets
+                .albums
+                .iter()
+                .map(|item| item.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Collections"]
+        );
+        let view = library.view_open(&spec).expect("open the filtered view");
+        assert_eq!(
+            track_ids(library.view_rows(&view.view_id, 0, 3).expect("fetch page")),
+            ["c"]
+        );
     }
 
     #[test]

@@ -12,6 +12,8 @@ export const commands = {
 	viewOpen: (spec: ViewSpec_Deserialize, options?: InvokeOptions) => typedError<OpenedView, AppError>(__TAURI_INVOKE("view_open", { spec }, options)),
 	/**  Fetch a page of at most 200 tracks for a previously opened view. */
 	viewRows: (viewId: string, offset: number, limit: number, options?: InvokeOptions) => typedError<TrackRow_Serialize[], AppError>(__TAURI_INVOKE("view_rows", { viewId, offset, limit }, options)),
+	/**  List the available genre, artist and album choices for a view. */
+	browserFacets: (spec: ViewSpec_Deserialize, options?: InvokeOptions) => typedError<BrowserFacets, AppError>(__TAURI_INVOKE("browser_facets", { spec }, options)),
 	/**  Read the window layout and theme from the library settings. */
 	windowSettingsGet: (options?: InvokeOptions) => typedError<WindowSettings_Serialize, AppError>(__TAURI_INVOKE("window_settings_get", undefined, options)),
 	/**  Save the window layout and theme to the library. */
@@ -50,6 +52,7 @@ export const commands = {
 export const events = {
 	deviceOnline: makeEvent<DeviceOnline, DeviceOnline>("device-online"),
 	libraryChanged: makeEvent<LibraryChanged, LibraryChanged>("library-changed"),
+	toggleColumnBrowser: makeEvent<ToggleColumnBrowser, ToggleColumnBrowser>("toggle-column-browser"),
 };
 
 /* Types */
@@ -71,6 +74,24 @@ maximum: number } |
 { kind: "playback" } |
 /**  A desktop service could not handle the request. */
 { kind: "unavailable" };
+
+/**  Browser options in genre, artist and album order. */
+export type BrowserFacets = {
+	/**  Genres in the current source and search. */
+	genres: BrowserOption[],
+	/**  Artists and compilations under the selected genre. */
+	artists: BrowserOption[],
+	/**  Albums under the selected genre and artist. */
+	albums: BrowserOption[],
+};
+
+/**  A classification offered by the column browser. */
+export type BrowserOption = {
+	/**  The tag's exact value, or “Compilations” for compilation tracks. */
+	name: string,
+	/**  Whether this represents the compilation group. */
+	compilation: boolean,
+};
 
 /**  A user's override for a library column. */
 export type ColumnPreference = ColumnPreference_Serialize | ColumnPreference_Deserialize;
@@ -239,6 +260,9 @@ export type SyncProgress = {
 	bytes_total: number,
 };
 
+/**  Requested by the native View menu. */
+export type ToggleColumnBrowser = null;
+
 /**  A column users can sort the track list by. */
 export type TrackColumn =
 /**  Whether the track is selected for sync. */
@@ -404,6 +428,8 @@ export type ViewSpec_Deserialize = {
 	genre?: string | null,
 	/**  Selected artist in the column browser, if any. */
 	artist?: string | null,
+	/**  Limit to tagged compilations or ordinary tracks when an artist is selected. */
+	compilation?: boolean | null,
 	/**  Selected album in the column browser, if any. */
 	album?: string | null,
 };
@@ -420,6 +446,8 @@ export type ViewSpec_Serialize = {
 	genre: string | null,
 	/**  Selected artist in the column browser, if any. */
 	artist: string | null,
+	/**  Limit to tagged compilations or ordinary tracks when an artist is selected. */
+	compilation: boolean | null,
 	/**  Selected album in the column browser, if any. */
 	album: string | null,
 };

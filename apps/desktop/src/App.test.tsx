@@ -3,7 +3,7 @@ import type { Channel } from "@tauri-apps/api/core";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, expect, test } from "vitest";
 import { App } from "./App";
-import type { ScanUpdate, WindowSettings_Serialize } from "./bindings";
+import type { ScanUpdate, ViewSpec_Deserialize, WindowSettings_Serialize } from "./bindings";
 
 afterEach(() => {
   cleanup();
@@ -21,6 +21,7 @@ test("the LCD shows import progress and the library keeps the duplicate notice",
       }
       if (command === "import_settings_get") return { copy_files: false, watched_folders: [] };
       if (command === "subscribe_player") return null;
+      if (command === "browser_facets") return { genres: [], artists: [], albums: [] };
       if (command === "window_settings_get") return {};
       if (command === "view_open") return { view_id: "1", count: 0, revision: 0 };
       if (command === "view_rows") return [];
@@ -45,6 +46,58 @@ test("the LCD shows import progress and the library keeps the duplicate notice",
   });
 });
 
+test("browser selections compose with debounced search and the search shortcuts", async () => {
+  const specs: ViewSpec_Deserialize[] = [];
+  mockIPC(
+    (command, args) => {
+      if (command === "window_settings_get") return { browser_visible: true };
+      if (command === "import_settings_get") return { copy_files: false, watched_folders: [] };
+      if (command === "subscribe_player" || command === "subscribe_scan") return null;
+      if (command === "view_open") {
+        specs.push((args as { spec: ViewSpec_Deserialize }).spec);
+        return { view_id: String(specs.length), count: 0, revision: 0 };
+      }
+      if (command === "browser_facets") {
+        return {
+          genres: [{ name: "Jazz", compilation: false }],
+          artists: [{ name: "Compilations", compilation: true }],
+          albums: [{ name: "Collection", compilation: false }],
+        };
+      }
+      throw new Error(`unexpected command ${command}`);
+    },
+    { shouldMockEvents: true },
+  );
+  render(() => <App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Jazz" }));
+  await waitFor(() => expect(specs.at(-1)?.genre).toBe("Jazz"));
+  fireEvent.click(screen.getByRole("button", { name: "Compilations" }));
+  await waitFor(() => expect(specs.at(-1)).toMatchObject({ genre: "Jazz", compilation: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Collection" }));
+  await waitFor(() => expect(specs.at(-1)?.album).toBe("Collection"));
+
+  const input = screen.getByRole<HTMLInputElement>("searchbox", { name: "Search library" });
+  fireEvent.keyDown(document, { key: "f", ctrlKey: true });
+  expect(document.activeElement).toBe(input);
+  fireEvent.input(input, { target: { value: "b" } });
+  fireEvent.input(input, { target: { value: "blue" } });
+  expect(specs.at(-1)?.query).toBeUndefined();
+  await waitFor(() =>
+    expect(specs.at(-1)).toMatchObject({
+      genre: "Jazz",
+      compilation: true,
+      album: "Collection",
+      query: "blue",
+    }),
+  );
+  expect(specs.some((spec) => spec.query === "b")).toBe(false);
+  fireEvent.keyDown(input, { key: "Escape" });
+  await waitFor(() => {
+    expect(input.value).toBe("");
+    expect(specs.at(-1)?.query).toBeUndefined();
+  });
+});
+
 test("the desktop renders saved settings and updates the backend when appearance changes", async () => {
   const settings: WindowSettings_Serialize = {
     theme: "dark",
@@ -61,6 +114,7 @@ test("the desktop renders saved settings and updates the backend when appearance
       if (command === "window_settings_get") return settings;
       if (command === "import_settings_get") return { copy_files: false, watched_folders: [] };
       if (command === "subscribe_player") return null;
+      if (command === "browser_facets") return { genres: [], artists: [], albums: [] };
       if (command === "subscribe_scan") return null;
       if (command === "window_settings_save") {
         saved.push(args);

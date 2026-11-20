@@ -8,7 +8,10 @@ use mt_types::{PlaylistId, TrackId};
 use rusqlite::{Connection, Row};
 
 pub(crate) use tracks::ALBUM_DISPLAY_ARTIST;
-pub use tracks::{SortDirection, TrackColumn, TrackFilter, TrackRow, TrackSearch, TrackSort};
+pub use tracks::{
+    BrowserFacets, BrowserOption, SortDirection, TrackColumn, TrackFilter, TrackRow, TrackSearch,
+    TrackSort,
+};
 
 /// An error reading a library query.
 #[derive(Debug, thiserror::Error)]

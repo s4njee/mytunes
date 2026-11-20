@@ -10,10 +10,12 @@ mod tracks;
 
 use std::sync::Arc;
 
-use events::{DesktopChannels, DeviceOnline, LibraryChanged, ScanUpdate, SyncProgress};
+use events::{
+    DesktopChannels, DeviceOnline, LibraryChanged, ScanUpdate, SyncProgress, ToggleColumnBrowser,
+};
 use import::ImportService;
 use mt_app::{
-    TrackRow,
+    BrowserFacets, TrackRow,
     library::{AppError, DesktopLibrary, OpenedView, ViewSpec},
     window::WindowSettings,
 };
@@ -25,7 +27,9 @@ use tauri::{
     menu::{Menu, MenuItemBuilder, SubmenuBuilder},
 };
 use tauri_plugin_window_state::{StateFlags, WindowExt};
-use tauri_specta::{Builder, ErrorHandlingMode, collect_commands, collect_events};
+use tauri_specta::{Builder, ErrorHandlingMode, Event, collect_commands, collect_events};
+
+const SHOW_COLUMN_BROWSER: &str = "show_column_browser";
 
 /// Where the generated TypeScript bindings live, relative to this crate.
 pub const BINDINGS_PATH: &str = "../src/bindings.ts";
@@ -61,6 +65,19 @@ async fn view_rows(
 ) -> Result<Vec<TrackRow>, AppError> {
     let library = library.inner().clone();
     async_runtime::spawn_blocking(move || library.view_rows(&view_id, offset, limit))
+        .await
+        .map_err(|_| AppError::Unavailable)?
+}
+
+/// List the available genre, artist and album choices for a view.
+#[tauri::command]
+#[specta::specta]
+async fn browser_facets(
+    library: State<'_, Arc<DesktopLibrary>>,
+    spec: ViewSpec,
+) -> Result<BrowserFacets, AppError> {
+    let library = library.inner().clone();
+    async_runtime::spawn_blocking(move || library.browser_facets(&spec))
         .await
         .map_err(|_| AppError::Unavailable)?
 }
@@ -128,6 +145,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             ping,
             view_open,
             view_rows,
+            browser_facets,
             window_settings_get,
             window_settings_save,
             import::import_choose_folder,
@@ -145,7 +163,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             subscribe_scan,
             subscribe_sync
         ])
-        .events(collect_events![LibraryChanged, DeviceOnline])
+        .events(collect_events![
+            LibraryChanged,
+            DeviceOnline,
+            ToggleColumnBrowser
+        ])
 }
 
 /// Writes the TypeScript bindings for [`specta_builder`] to [`BINDINGS_PATH`].
@@ -210,18 +232,37 @@ pub fn run() {
             let add = MenuItemBuilder::with_id(import::ADD_FOLDER, "Add Folder to Library…")
                 .accelerator("CmdOrCtrl+O")
                 .build(app)?;
+            let browser =
+                MenuItemBuilder::with_id(SHOW_COLUMN_BROWSER, "Show Column Browser").build(app)?;
+            let mut has_file = false;
+            let mut has_view = false;
             for item in menu.items()? {
-                if let Some(submenu) = item.as_submenu()
-                    && submenu.text()? == "File"
-                {
-                    submenu.insert(&add, 0)?;
-                    return Ok(menu);
+                if let Some(submenu) = item.as_submenu() {
+                    match submenu.text()?.as_str() {
+                        "File" => {
+                            submenu.insert(&add, 0)?;
+                            has_file = true;
+                        }
+                        "View" => {
+                            submenu.insert(&browser, 0)?;
+                            has_view = true;
+                        }
+                        _ => {}
+                    }
                 }
             }
-            menu.prepend(&SubmenuBuilder::new(app, "File").item(&add).build()?)?;
+            if !has_file {
+                menu.prepend(&SubmenuBuilder::new(app, "File").item(&add).build()?)?;
+            }
+            if !has_view {
+                menu.insert(&SubmenuBuilder::new(app, "View").item(&browser).build()?, 2)?;
+            }
             Ok(menu)
         })
         .on_menu_event(|app, event| {
+            if event.id() == SHOW_COLUMN_BROWSER {
+                let _ = ToggleColumnBrowser.emit(app);
+            }
             if event.id() == import::ADD_FOLDER
                 && let Err(error) = import::pick_import_folder(app)
             {
