@@ -73,11 +73,13 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: PodShell(
-          eyebrow: 'Library',
-          metadata: '0 songs · 0 albums',
-          display: const SizedBox.shrink(),
           deck: const SizedBox.shrink(),
-          onEyebrowHold: () => opens++,
+          display: PodDisplay(
+            eyebrow: 'Library',
+            metadata: '0 songs · 0 albums',
+            body: const SizedBox.shrink(),
+            onEyebrowHold: () => opens++,
+          ),
         ),
       ),
     );

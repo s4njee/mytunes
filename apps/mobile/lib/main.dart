@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'dev_import.dart';
+import 'pod_navigation.dart';
 import 'pod_shell.dart';
 import 'src/rust/api/device.dart';
 import 'src/rust/frb_generated.dart';
@@ -109,19 +110,22 @@ class _LibraryHomeState extends State<_LibraryHome> {
           _ when library != null => 'Opening library…',
           _ => '0 songs · 0 albums',
         };
-        return PodShell(
-          eyebrow: 'Library',
-          metadata: metadata,
-          onEyebrowHold: kDebugMode && library != null && !_importing
-              ? () => unawaited(_importTracks(library))
-              : null,
-          display: _notice == null
-              ? const SizedBox.shrink()
-              : Padding(
-                  padding: const EdgeInsets.only(top: MtSpace.rowGap),
-                  child: Semantics(liveRegion: true, child: Text(_notice!)),
-                ),
-          deck: const SizedBox(height: MtWheel.diameter),
+        return PodNavigation(
+          display: (context, screen, selection) => PodDisplay(
+            eyebrow: 'Library',
+            metadata: metadata,
+            onEyebrowHold: kDebugMode && library != null && !_importing
+                ? () => unawaited(_importTracks(library))
+                : null,
+            body: _notice == null
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(top: MtSpace.rowGap),
+                    child: Semantics(liveRegion: true, child: Text(_notice!)),
+                  ),
+          ),
+          deck: (context, navigation) =>
+              const SizedBox(height: MtWheel.diameter),
         );
       },
     );

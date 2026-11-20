@@ -8,20 +8,10 @@ import 'theme/tokens.g.dart';
 
 /// Shared display and wheel deck for the portrait player screens.
 class PodShell extends StatelessWidget {
-  const PodShell({
-    super.key,
-    required this.eyebrow,
-    required this.metadata,
-    required this.display,
-    required this.deck,
-    this.onEyebrowHold,
-  });
+  const PodShell({super.key, required this.display, required this.deck});
 
-  final String eyebrow;
-  final String metadata;
   final Widget display;
   final Widget deck;
-  final VoidCallback? onEyebrowHold;
 
   @override
   Widget build(BuildContext context) {
@@ -38,54 +28,7 @@ class PodShell extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  math.max(MtSpace.gutter, safe.left),
-                  math.max(MtSpace.displayTop, safe.top),
-                  math.max(MtSpace.gutter, safe.right),
-                  MtSpace.displayBottom,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: colors.rule)),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: MtSpace.headerBottom,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: _eyebrow(colors.accent),
-                              ),
-                            ),
-                            const SizedBox(width: MtSpace.rowGap),
-                            Expanded(
-                              child: Text(
-                                metadata,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.end,
-                                style: MtType.meta.copyWith(
-                                  color: colors.textTertiary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Expanded(child: display),
-                  ],
-                ),
-              ),
-            ),
+            Expanded(child: display),
             DecoratedBox(
               decoration: BoxDecoration(
                 color: colors.deck,
@@ -101,6 +44,70 @@ class PodShell extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A screen's heading and content slide together above the fixed wheel deck.
+class PodDisplay extends StatelessWidget {
+  const PodDisplay({
+    super.key,
+    required this.eyebrow,
+    required this.metadata,
+    required this.body,
+    this.onEyebrowHold,
+  });
+
+  final String eyebrow;
+  final String metadata;
+  final Widget body;
+  final VoidCallback? onEyebrowHold;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MtTheme.of(context).colors;
+    final safe = MediaQuery.viewPaddingOf(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        math.max(MtSpace.gutter, safe.left),
+        math.max(MtSpace.displayTop, safe.top),
+        math.max(MtSpace.gutter, safe.right),
+        MtSpace.displayBottom,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: colors.rule)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: MtSpace.headerBottom),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: _eyebrow(colors.accent),
+                    ),
+                  ),
+                  const SizedBox(width: MtSpace.rowGap),
+                  Expanded(
+                    child: Text(
+                      metadata,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: MtType.meta.copyWith(color: colors.textTertiary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(child: body),
+        ],
       ),
     );
   }

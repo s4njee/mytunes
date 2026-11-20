@@ -473,6 +473,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC1: A screen stack (not go_router routes). Screen change is a horizontal slide: forward slides left, back slides right, 220 ms ease-out.
   - AC2: **Per the handoff, MENU returns to the root Menu and resets selection to 0** for the v1 five-screen set. For the deeper tree in M5, MENU pops **one level**, and the selection of the parent is restored, as on a real iPod. Record the switch in an ADR when E10 lands.
   - AC3: The Android system back gesture equals MENU. On iOS, an edge-swipe back is disabled on wheel screens (the wheel is the navigation).
+  - _Status 2026-11-20: The app shell uses the screen stack and a 220 ms ease-out slide with a fixed wheel deck. Widget tests cover slide timing, root reset, and the iOS edge-swipe guard. MENU and Android system back passed on an Android emulator using test destinations. The E6 wheel and screens will expose these controls in the app. Native iOS, reference goldens, and hosted CI remain open._
 
 #### E6 Wheel screens (1a / 2a)
 - [ ] **E6.S1 Click wheel widget.** 🧪 As a user, I want a wheel that feels mechanical so that browsing is tactile and fun.
