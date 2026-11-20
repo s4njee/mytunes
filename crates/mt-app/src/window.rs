@@ -3,11 +3,12 @@
 use std::collections::HashSet;
 
 use mt_db::queries::{TrackColumn, TrackSort};
-use rusqlite::{Connection, OptionalExtension};
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::library::AppError;
+use crate::settings;
 
 const KEY: &str = "desktop.window";
 
@@ -83,29 +84,12 @@ impl WindowSettings {
 }
 
 pub(crate) fn load(db: &Connection) -> Result<WindowSettings, AppError> {
-    let stored: Option<String> = db
-        .query_row("SELECT value FROM settings WHERE key = ?1", [KEY], |row| {
-            row.get(0)
-        })
-        .optional()
-        .map_err(|_| AppError::Library)?;
-    let settings: Option<WindowSettings> = stored
-        .as_deref()
-        .map(serde_json::from_str)
-        .transpose()
-        .map_err(|_| AppError::Library)?;
-    Ok(settings.unwrap_or_default().normalized())
+    Ok(settings::load::<WindowSettings>(db, KEY)?.normalized())
 }
 
 pub(crate) fn save(db: &Connection, settings: WindowSettings) -> Result<WindowSettings, AppError> {
     let settings = settings.normalized();
-    let encoded = serde_json::to_string(&settings).map_err(|_| AppError::Library)?;
-    db.execute(
-        "INSERT INTO settings(key, value) VALUES (?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        (KEY, encoded),
-    )
-    .map_err(|_| AppError::Library)?;
+    settings::save(db, KEY, &settings)?;
     Ok(settings)
 }
 

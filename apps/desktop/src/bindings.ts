@@ -16,10 +16,20 @@ export const commands = {
 	windowSettingsGet: (options?: InvokeOptions) => typedError<WindowSettings_Serialize, AppError>(__TAURI_INVOKE("window_settings_get", undefined, options)),
 	/**  Save the window layout and theme to the library. */
 	windowSettingsSave: (settings: WindowSettings_Deserialize, options?: InvokeOptions) => typedError<WindowSettings_Serialize, AppError>(__TAURI_INVOKE("window_settings_save", { settings }, options)),
+	/**  Open the native folder picker and queue the selected folder for import. */
+	importChooseFolder: (options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("import_choose_folder", undefined, options)),
+	/**  Read the persisted copy preference and watched folders. */
+	importSettingsGet: (options?: InvokeOptions) => typedError<ImportSettings_Serialize, AppError>(__TAURI_INVOKE("import_settings_get", undefined, options)),
+	/**  Set whether newly added files are copied to the managed media folder. */
+	importSetCopy: (copyFiles: boolean, options?: InvokeOptions) => typedError<ImportSettings_Serialize, AppError>(__TAURI_INVOKE("import_set_copy", { copyFiles }, options)),
+	/**  Choose a folder with the native picker and start watching it. */
+	importAddWatch: (options?: InvokeOptions) => typedError<ImportSettings_Serialize | null, AppError>(__TAURI_INVOKE("import_add_watch", undefined, options)),
+	/**  Stop watching a folder and discard its pending rescan. */
+	importRemoveWatch: (path: string, options?: InvokeOptions) => typedError<ImportSettings_Serialize, AppError>(__TAURI_INVOKE("import_remove_watch", { path }, options)),
 	/**  Subscribe to the current transport snapshot and subsequent player events. */
 	subscribePlayer: (channel: Channel<PlayerEvent_Deserialize>, options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("subscribe_player", { channel }, options)),
 	/**  Subscribe to library scan progress. */
-	subscribeScan: (channel: Channel<ScanProgress>, options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("subscribe_scan", { channel }, options)),
+	subscribeScan: (channel: Channel<ScanUpdate>, options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("subscribe_scan", { channel }, options)),
 	/**  Subscribe to device sync progress. */
 	subscribeSync: (channel: Channel<SyncProgress>, options?: InvokeOptions) => typedError<null, AppError>(__TAURI_INVOKE("subscribe_sync", { channel }, options)),
 };
@@ -41,6 +51,8 @@ maximum: number } |
 { kind: "view_expired" } |
 /**  SQLite could not read or write the library. */
 { kind: "library" } |
+/**  A folder cannot be monitored for filesystem changes. */
+{ kind: "watch_folder" } |
 /**  A desktop service could not handle the request. */
 { kind: "unavailable" };
 
@@ -71,6 +83,25 @@ export type ColumnPreference_Serialize = {
 export type DeviceOnline = {
 	/**  Stable paired device identifier. */
 	id: string,
+};
+
+/**  Preferences shared by manual imports and watched folders. */
+export type ImportSettings = ImportSettings_Serialize | ImportSettings_Deserialize;
+
+/**  Preferences shared by manual imports and watched folders. */
+export type ImportSettings_Deserialize = {
+	/**  Copy newly imported files into MyTunes Media. */
+	copy_files?: boolean,
+	/**  Canonical folders to monitor recursively. */
+	watched_folders?: string[],
+};
+
+/**  Preferences shared by manual imports and watched folders. */
+export type ImportSettings_Serialize = {
+	/**  Copy newly imported files into MyTunes Media. */
+	copy_files: boolean,
+	/**  Canonical folders to monitor recursively. */
+	watched_folders: string[],
 };
 
 /**  Notifies the UI to discard pages after the library changes. */
@@ -153,6 +184,21 @@ export type ScanProgress = {
 	/**  Most recently discovered or processed path. */
 	current_path: string,
 };
+
+/**  Progress or terminal outcome of a library import. */
+export type ScanUpdate =
+/**  The scanner is discovering or processing files. */
+{ state: "scanning";
+/**  Current counts and source path. */
+progress: ScanProgress } |
+/**  The scan has committed the readable files to the library. */
+{ state: "finished";
+/**  New paths with the same content as another library track. */
+duplicates: number;
+/**  Paths that could not be accessed, read, or copied. */
+errors: number } |
+/**  The import could not be committed. */
+{ state: "failed" };
 
 /**  Direction of a track sort. */
 export type SortDirection =

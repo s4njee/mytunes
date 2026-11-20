@@ -1,7 +1,10 @@
+import { Channel } from "@tauri-apps/api/core";
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import {
   commands,
   events,
+  type ImportSettings,
+  type ScanUpdate,
   type TrackColumn,
   type TrackRow_Serialize,
   type TrackSort,
@@ -34,6 +37,10 @@ function displayTrack(row: TrackRow_Serialize): Track {
 /** The desktop library window backed by the local Rust library. */
 export function App() {
   const [settings, setSettings] = createSignal<WindowSettings_Serialize>();
+  const [importSettings, setImportSettings] = createSignal<ImportSettings>();
+  const [scan, setScan] = createSignal<ScanUpdate>();
+  const [preferenceBusy, setPreferenceBusy] = createSignal(false);
+  const [preferenceError, setPreferenceError] = createSignal("");
   const [rows, setRows] = createSignal<TrackRow_Serialize[]>([]);
   const [selected, setSelected] = createSignal("");
   const [summary, setSummary] = createSignal("Opening library…");
@@ -46,6 +53,44 @@ export function App() {
   function reportError(message: string) {
     setSummary(message);
   }
+
+  async function updateImportSettings(
+    action: () => ReturnType<typeof commands.importAddWatch>,
+    errorMessage: string,
+  ) {
+    setPreferenceBusy(true);
+    setPreferenceError("");
+    try {
+      const result = await action();
+      if (result.status === "ok") {
+        if (result.data) setImportSettings(result.data);
+      } else setPreferenceError(errorMessage);
+    } catch {
+      setPreferenceError(errorMessage);
+    } finally {
+      setPreferenceBusy(false);
+    }
+  }
+
+  const scanProgress = () => {
+    const update = scan();
+    return update?.state === "scanning" ? update.progress : undefined;
+  };
+  const scanNotice = () => {
+    const update = scan();
+    if (update?.state === "failed") return "Could not import music.";
+    if (update?.state !== "finished") return "";
+    const messages = [];
+    if (update.duplicates === 1) messages.push("Duplicate found");
+    if (update.duplicates > 1)
+      messages.push(`Duplicates found (${update.duplicates.toLocaleString()})`);
+    if (update.errors > 0) {
+      messages.push(
+        `${update.errors.toLocaleString()} ${update.errors === 1 ? "item" : "items"} could not be imported`,
+      );
+    }
+    return messages.join(" · ");
+  };
 
   async function loadView(sort: TrackSort | undefined = settings()?.sort) {
     const request = ++generation;
@@ -75,6 +120,22 @@ export function App() {
     () => undefined,
     () => {
       const initialize = async () => {
+        const updates = new Channel<ScanUpdate>();
+        updates.onmessage = (update) => {
+          if (!disposed) setScan(update);
+        };
+        void commands
+          .subscribeScan(updates)
+          .then((result) => {
+            if (!disposed && result.status === "error") setScan({ state: "failed" });
+          })
+          .catch(() => {
+            if (!disposed) setScan({ state: "failed" });
+          });
+        void updateImportSettings(
+          commands.importSettingsGet,
+          "Could not read library preferences.",
+        );
         const loaded = await commands.windowSettingsGet();
         if (disposed) return;
         if (loaded.status === "error") {
@@ -166,6 +227,34 @@ export function App() {
       showBrowser={settings()?.browser_visible ?? true}
       theme={settings()?.theme ?? "system"}
       showSystemTheme
+      scanProgress={scanProgress()}
+      importNotice={scanNotice()}
+      importSettings={importSettings()}
+      preferenceBusy={preferenceBusy()}
+      preferenceError={preferenceError()}
+      onAddFolder={() => {
+        void commands
+          .importChooseFolder()
+          .then((result) => {
+            if (result.status === "error") setScan({ state: "failed" });
+          })
+          .catch(() => setScan({ state: "failed" }));
+      }}
+      onCopyFiles={(copyFiles) =>
+        void updateImportSettings(
+          () => commands.importSetCopy(copyFiles),
+          "Could not save the copy preference.",
+        )
+      }
+      onWatchFolder={() =>
+        void updateImportSettings(commands.importAddWatch, "Could not watch this folder.")
+      }
+      onRemoveWatch={(path) =>
+        void updateImportSettings(
+          () => commands.importRemoveWatch(path),
+          "Could not remove this watched folder.",
+        )
+      }
       sort={settings()?.sort}
       columnPreferences={settings()?.columns}
       sidebarWidth={settings()?.sidebar_width}

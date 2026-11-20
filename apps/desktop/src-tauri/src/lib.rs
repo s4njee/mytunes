@@ -5,19 +5,24 @@
 
 mod artwork;
 pub mod events;
+mod import;
 
 use std::sync::Arc;
 
-use events::{DesktopChannels, DeviceOnline, LibraryChanged, SyncProgress};
+use events::{DesktopChannels, DeviceOnline, LibraryChanged, ScanUpdate, SyncProgress};
+use import::ImportService;
 use mt_app::{
     TrackRow,
     library::{AppError, DesktopLibrary, OpenedView, ViewSpec},
     window::WindowSettings,
 };
 use mt_audio::PlayerEvent;
-use mt_meta::scan::ScanProgress;
 use mt_types::Pong;
-use tauri::{Manager, State, Url, WebviewWindowBuilder, async_runtime, ipc::Channel};
+use tauri::{
+    DragDropEvent, Manager, RunEvent, State, Url, WebviewWindowBuilder, WindowEvent, async_runtime,
+    ipc::Channel,
+    menu::{Menu, MenuItemBuilder, SubmenuBuilder},
+};
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 use tauri_specta::{Builder, ErrorHandlingMode, collect_commands, collect_events};
 
@@ -99,7 +104,7 @@ fn subscribe_player(
 #[specta::specta]
 fn subscribe_scan(
     channels: State<'_, DesktopChannels>,
-    channel: Channel<ScanProgress>,
+    channel: Channel<ScanUpdate>,
 ) -> Result<(), AppError> {
     channels.scan.subscribe(channel)
 }
@@ -124,6 +129,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             view_rows,
             window_settings_get,
             window_settings_save,
+            import::import_choose_folder,
+            import::import_settings_get,
+            import::import_set_copy,
+            import::import_add_watch,
+            import::import_remove_watch,
             subscribe_player,
             subscribe_scan,
             subscribe_sync
@@ -186,6 +196,30 @@ pub fn run() {
                 .skip_initial_state("main")
                 .build(),
         )
+        .plugin(tauri_plugin_dialog::init())
+        .menu(|app| {
+            let menu = Menu::default(app)?;
+            let add = MenuItemBuilder::with_id(import::ADD_FOLDER, "Add Folder to Library…")
+                .accelerator("CmdOrCtrl+O")
+                .build(app)?;
+            for item in menu.items()? {
+                if let Some(submenu) = item.as_submenu()
+                    && submenu.text()? == "File"
+                {
+                    submenu.insert(&add, 0)?;
+                    return Ok(menu);
+                }
+            }
+            menu.prepend(&SubmenuBuilder::new(app, "File").item(&add).build()?)?;
+            Ok(menu)
+        })
+        .on_menu_event(|app, event| {
+            if event.id() == import::ADD_FOLDER
+                && let Err(error) = import::pick_import_folder(app)
+            {
+                eprintln!("could not open folder picker: {error}");
+            }
+        })
         .invoke_handler(builder.invoke_handler())
         .register_asynchronous_uri_scheme_protocol("mtart", |context, request, responder| {
             let library = context
@@ -200,8 +234,17 @@ pub fn run() {
         .setup(move |app| {
             let data = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data)?;
-            let library = DesktopLibrary::open(data.join("library.sqlite"))?;
+            let data = data.canonicalize()?;
+            let db_path = data.join("library.sqlite");
+            let library = DesktopLibrary::open(&db_path)?;
             app.manage(Arc::new(library));
+            let music = app.path().audio_dir().unwrap_or_else(|_| data.clone());
+            let music = music.canonicalize().unwrap_or(music);
+            app.manage(ImportService::start(
+                app.handle(),
+                &db_path,
+                music.join("MyTunes Media"),
+            )?);
             builder.mount_events(app);
             let window = app
                 .config()
@@ -217,17 +260,30 @@ pub fn run() {
             let main = WebviewWindowBuilder::from_config(app, window)?
                 .on_navigation(move |url| local_navigation(url, dev.as_ref()))
                 .build()?;
+            let handle = app.handle().clone();
+            main.on_window_event(move |event| {
+                if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
+                    handle.state::<ImportService>().enqueue(paths.clone());
+                }
+            });
             if let Err(error) = main.restore_state(window_state) {
                 eprintln!("could not restore the desktop window: {error}");
             }
             main.show()?;
             Ok(())
         })
-        .run(tauri::generate_context!());
+        .build(tauri::generate_context!());
 
-    if let Err(e) = result {
-        eprintln!("error while running MyTunes: {e}");
-        std::process::exit(1);
+    match result {
+        Ok(app) => app.run(|handle, event| {
+            if let RunEvent::Exit = event {
+                handle.state::<ImportService>().stop();
+            }
+        }),
+        Err(e) => {
+            eprintln!("error while running MyTunes: {e}");
+            std::process::exit(1);
+        }
     }
 }
 

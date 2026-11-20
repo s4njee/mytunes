@@ -1,5 +1,12 @@
 import { For, Show } from "solid-js";
-import type { ColumnPreference_Serialize, TrackColumn, TrackSort, WindowTheme } from "../bindings";
+import type {
+  ColumnPreference_Serialize,
+  ImportSettings,
+  ScanProgress,
+  TrackColumn,
+  TrackSort,
+  WindowTheme,
+} from "../bindings";
 import { Icon, type IconName } from "./Icon";
 import "./library.css";
 
@@ -44,6 +51,15 @@ interface WindowProps {
   showBrowser: boolean;
   theme: WindowTheme;
   showSystemTheme?: boolean;
+  scanProgress?: ScanProgress;
+  importNotice?: string;
+  importSettings?: ImportSettings;
+  preferenceBusy?: boolean;
+  preferenceError?: string;
+  onAddFolder?: () => void;
+  onCopyFiles?: (enabled: boolean) => void;
+  onWatchFolder?: () => void;
+  onRemoveWatch?: (path: string) => void;
   sort?: TrackSort;
   columnPreferences?: ColumnPreference_Serialize[];
   sidebarWidth?: number | null;
@@ -122,37 +138,62 @@ function Transport(props: WindowProps) {
 
 function PlaybackDisplay(props: WindowProps) {
   return (
-    <section class="playback-display" aria-label="Now playing">
+    <section class="playback-display" aria-label={props.scanProgress ? "Import" : "Now playing"}>
       <div class="display-badge" aria-hidden="true">
         <Icon name="wave" />
       </div>
       <div class="display-body">
-        <div class="display-track">
-          <strong title={props.track?.name}>{props.track?.name ?? "No track playing"}</strong>
-          <Show when={props.track}>
-            {(track) => (
-              <span title={`${track().artist} · ${track().album}`}>
-                {track().artist} · {track().album}
-              </span>
-            )}
-          </Show>
-        </div>
-        <div class="display-progress">
-          <span>{formatTrackTime(props.position)}</span>
-          <input
-            type="range"
-            min={0}
-            max={props.track?.seconds || 1}
-            disabled={!props.onPosition || !props.track}
-            value={props.position}
-            style={{
-              "--range-progress": `${(100 * props.position) / (props.track?.seconds || 1)}%`,
-            }}
-            aria-label="Playback position"
-            onInput={(event) => props.onPosition?.(event.currentTarget.valueAsNumber)}
-          />
-          <span>{formatTrackTime(props.track?.seconds ?? 0)}</span>
-        </div>
+        <Show
+          when={props.scanProgress}
+          fallback={
+            <>
+              <div class="display-track">
+                <strong title={props.track?.name}>{props.track?.name ?? "No track playing"}</strong>
+                <Show when={props.track}>
+                  {(track) => (
+                    <span title={`${track().artist} · ${track().album}`}>
+                      {track().artist} · {track().album}
+                    </span>
+                  )}
+                </Show>
+              </div>
+              <div class="display-progress">
+                <span>{formatTrackTime(props.position)}</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={props.track?.seconds || 1}
+                  disabled={!props.onPosition || !props.track}
+                  value={props.position}
+                  style={{
+                    "--range-progress": `${(100 * props.position) / (props.track?.seconds || 1)}%`,
+                  }}
+                  aria-label="Playback position"
+                  onInput={(event) => props.onPosition?.(event.currentTarget.valueAsNumber)}
+                />
+                <span>{formatTrackTime(props.track?.seconds ?? 0)}</span>
+              </div>
+            </>
+          }
+        >
+          {(progress) => (
+            <>
+              <div class="display-track" role="status">
+                <strong>
+                  {progress().total_estimate > 0
+                    ? `Importing ${progress().scanned.toLocaleString()} of ${progress().total_estimate.toLocaleString()}`
+                    : "Importing…"}
+                </strong>
+              </div>
+              <progress
+                class="import-progress"
+                aria-label="Import progress"
+                max={Math.max(1, progress().total_estimate)}
+                value={progress().total_estimate > 0 ? progress().scanned : undefined}
+              />
+            </>
+          )}
+        </Show>
       </div>
     </section>
   );
@@ -493,7 +534,13 @@ function StatusBar(props: WindowProps) {
   return (
     <footer class="library-status">
       <section class="library-actions" aria-label="Library controls">
-        <button type="button" class="control" aria-label="Add folder" disabled>
+        <button
+          type="button"
+          class="control"
+          aria-label="Add folder"
+          onClick={props.onAddFolder}
+          disabled={!props.onAddFolder}
+        >
           <Icon name="add" />
         </button>
         <button type="button" class="control" aria-label="Sync" disabled>
@@ -514,35 +561,42 @@ function StatusBar(props: WindowProps) {
       </section>
       <span class="library-summary" role="status">
         {props.summary}
+        <Show when={props.importNotice}>{(notice) => <> · {notice()}</>}</Show>
       </span>
       <details class="appearance">
-        <summary class="control" aria-label="Appearance" title="Appearance">
+        <summary
+          class="control"
+          aria-label={props.onWatchFolder ? "Preferences" : "Appearance"}
+          title={props.onWatchFolder ? "Preferences" : "Appearance"}
+        >
           <Icon name="settings" />
         </summary>
-        <section class="appearance-options" aria-label="Theme">
-          <Show when={props.showSystemTheme}>
+        <div class="appearance-options">
+          <section class="theme-options" aria-label="Theme">
+            <Show when={props.showSystemTheme}>
+              <button
+                type="button"
+                aria-pressed={props.theme === "system" ? "true" : "false"}
+                onClick={() => props.onTheme("system")}
+              >
+                System
+              </button>
+            </Show>
             <button
               type="button"
-              aria-pressed={props.theme === "system" ? "true" : "false"}
-              onClick={() => props.onTheme("system")}
+              aria-pressed={props.theme === "light" ? "true" : "false"}
+              onClick={() => props.onTheme("light")}
             >
-              System
+              Light
             </button>
-          </Show>
-          <button
-            type="button"
-            aria-pressed={props.theme === "light" ? "true" : "false"}
-            onClick={() => props.onTheme("light")}
-          >
-            Light
-          </button>
-          <button
-            type="button"
-            aria-pressed={props.theme === "dark" ? "true" : "false"}
-            onClick={() => props.onTheme("dark")}
-          >
-            Dark
-          </button>
+            <button
+              type="button"
+              aria-pressed={props.theme === "dark" ? "true" : "false"}
+              onClick={() => props.onTheme("dark")}
+            >
+              Dark
+            </button>
+          </section>
           <Show when={props.onColumnVisibility}>
             {(visible) => (
               <fieldset class="column-options">
@@ -565,7 +619,46 @@ function StatusBar(props: WindowProps) {
               </fieldset>
             )}
           </Show>
-        </section>
+          <Show when={props.onWatchFolder}>
+            <fieldset class="import-options" disabled={props.preferenceBusy}>
+              <legend>Library</legend>
+              <label class="copy-files">
+                <input
+                  type="checkbox"
+                  checked={props.importSettings?.copy_files ?? false}
+                  disabled={!props.importSettings}
+                  onChange={(event) => {
+                    const enabled = event.currentTarget.checked;
+                    event.currentTarget.checked = props.importSettings?.copy_files ?? false;
+                    props.onCopyFiles?.(enabled);
+                  }}
+                />
+                Copy files to MyTunes Media folder when adding
+              </label>
+              <span class="watched-folders-label">Watched folders</span>
+              <ul class="watched-folders" aria-label="Watched folders">
+                <For each={props.importSettings?.watched_folders ?? []}>
+                  {(path) => (
+                    <li>
+                      <span title={path}>{path}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remove watched folder ${path}`}
+                        onClick={() => props.onRemoveWatch?.(path)}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  )}
+                </For>
+              </ul>
+              <button type="button" class="add-watch" onClick={props.onWatchFolder}>
+                Add Watched Folder…
+              </button>
+              <Show when={props.preferenceError}>{(error) => <p role="alert">{error()}</p>}</Show>
+            </fieldset>
+          </Show>
+        </div>
       </details>
     </footer>
   );

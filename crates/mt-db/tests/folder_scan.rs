@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::{Duration, UNIX_EPOCH};
 
 use gen_fixtures::{sine, wav_bytes};
-use mt_db::{ImportError, open_desktop, scan_library_folder};
+use mt_db::{ImportError, ManagedMedia, import_library_paths, open_desktop, scan_library_folder};
 use mt_meta::scan::ScanFileError;
 use rusqlite::Connection;
 use tempfile::tempdir;
@@ -39,6 +39,94 @@ fn track(db: &Connection, title: &str) -> (String, bool, i64, i64, i64) {
         },
     )
     .expect("find scanned track")
+}
+
+#[test]
+fn mixed_selection_counts_unique_paths_and_reports_identical_content() {
+    let dir = tempdir().unwrap();
+    let mut db = open_desktop(dir.path().join("library.sqlite")).unwrap();
+    let album = dir.path().join("album");
+    fs::create_dir(&album).unwrap();
+    let first = album.join("First.wav");
+    let second = dir.path().join("Second.wav");
+    let outside = dir.path().join("Outside.wav");
+    write_tone(&first, 0.1);
+    fs::copy(&first, &second).unwrap();
+    write_tone(&outside, 0.2);
+    let media = dir.path().join("MyTunes Media");
+    let media = ManagedMedia {
+        folder: &media,
+        copy_files: false,
+    };
+    import_library_paths(&mut db, std::slice::from_ref(&outside), &media, |_| {}).unwrap();
+    fs::remove_file(outside).unwrap();
+
+    let paths = [first, second, album];
+    let mut latest = None;
+    let report =
+        import_library_paths(&mut db, &paths, &media, |progress| latest = Some(progress)).unwrap();
+    let progress = latest.unwrap();
+    assert_eq!((progress.scanned, progress.total_estimate), (2, 2));
+    assert_eq!(
+        (report.read, report.duplicates, report.marked_missing),
+        (2, 1, 0)
+    );
+    assert!(!track(&db, "Outside").1);
+    assert_ne!(track(&db, "First").0, track(&db, "Second").0);
+    assert!(!media.folder.exists());
+
+    let repeated = import_library_paths(&mut db, &paths, &media, |_| {}).unwrap();
+    assert_eq!(
+        (repeated.read, repeated.unchanged, repeated.duplicates),
+        (0, 2, 0)
+    );
+}
+
+#[test]
+fn managed_copies_keep_distinct_sources_and_survive_repeat_imports() {
+    let dir = tempdir().unwrap();
+    let mut db = open_desktop(dir.path().join("library.sqlite")).unwrap();
+    let media_folder = dir.path().join("MyTunes Media");
+    let mut media = ManagedMedia {
+        folder: &media_folder,
+        copy_files: true,
+    };
+    let paths = ["one", "two"].map(|name| {
+        let folder = dir.path().join(name);
+        fs::create_dir(&folder).unwrap();
+        folder.join("Same.wav")
+    });
+    write_tone(&paths[0], 0.1);
+    fs::copy(&paths[0], &paths[1]).unwrap();
+    let initial = import_library_paths(&mut db, &paths, &media, |_| {}).unwrap();
+    assert_eq!((initial.read, initial.duplicates), (2, 1));
+    let copies = {
+        let mut query = db.prepare("SELECT file_path FROM tracks").unwrap();
+        let rows = query.query_map([], |row| row.get::<_, String>(0)).unwrap();
+        rows.collect::<rusqlite::Result<Vec<_>>>().unwrap()
+    };
+    assert_eq!(copies.len(), 2);
+    assert_ne!(copies[0], copies[1]);
+    let original = fs::read(&paths[0]).unwrap();
+    for copy in &copies {
+        let copy = Path::new(copy).canonicalize().unwrap();
+        assert!(copy.starts_with(media.folder.canonicalize().unwrap()));
+        assert_eq!(copy.file_name().unwrap(), "Same.wav");
+        assert_eq!(fs::read(copy).unwrap(), original);
+    }
+
+    media.copy_files = false;
+    assert_eq!(
+        import_library_paths(&mut db, &paths, &media, |_| {})
+            .unwrap()
+            .read,
+        0
+    );
+    fs::remove_file(&copies[0]).unwrap();
+    let restored = import_library_paths(&mut db, &paths, &media, |_| {}).unwrap();
+    assert_eq!((restored.read, restored.duplicates), (1, 0));
+    assert_eq!(fs::read(&copies[0]).unwrap(), original);
+    assert!(paths.iter().all(|path| path.is_file()));
 }
 
 #[test]
@@ -196,6 +284,25 @@ fn database_failure_rolls_back_the_whole_import() {
         scan_library_folder(&mut db, &media, |_| {}),
         Err(ImportError::Database(_))
     ));
+    let managed = dir.path().join("MyTunes Media");
+    let copy = ManagedMedia {
+        folder: &managed,
+        copy_files: true,
+    };
+    assert!(matches!(
+        import_library_paths(&mut db, std::slice::from_ref(&media), &copy, |_| {}),
+        Err(ImportError::Database(_))
+    ));
+    for folder in fs::read_dir(managed).unwrap() {
+        assert!(
+            fs::read_dir(folder.unwrap().path())
+                .unwrap()
+                .next()
+                .is_none()
+        );
+    }
+    assert!(media.join("One.wav").is_file());
+    assert!(media.join("Two.wav").is_file());
     assert_eq!(
         db.query_row("SELECT COUNT(*) FROM tracks", [], |row| row
             .get::<_, i64>(0))

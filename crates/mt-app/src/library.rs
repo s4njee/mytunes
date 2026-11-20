@@ -33,6 +33,9 @@ pub enum AppError {
     /// SQLite could not read or write the library.
     #[error("Could not access the music library.")]
     Library,
+    /// A folder cannot be monitored for filesystem changes.
+    #[error("Could not watch this folder.")]
+    WatchFolder,
     /// A desktop service could not handle the request.
     #[error("The desktop service is temporarily unavailable.")]
     Unavailable,

@@ -29,7 +29,11 @@ pub struct FileStamp {
 }
 
 impl FileStamp {
-    pub(crate) fn from_metadata(metadata: &Metadata) -> io::Result<Self> {
+    /// Read the size and modification time of a regular file.
+    ///
+    /// # Errors
+    /// Returns an error for non-files or unavailable or out-of-range attributes.
+    pub fn from_metadata(metadata: &Metadata) -> io::Result<Self> {
         if !metadata.is_file() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -130,32 +134,63 @@ pub fn scan_tree<E>(
     root: &Path,
     previous: &HashMap<PathBuf, CachedTrack>,
     known_artwork: &HashSet<String>,
+    on_progress: impl FnMut(ScanProgress),
+    on_file: impl FnMut(ScannedFile) -> Result<(), E>,
+) -> Result<Vec<WalkError>, E> {
+    scan_paths(
+        &[root.to_owned()],
+        previous,
+        known_artwork,
+        |_| true,
+        on_progress,
+        on_file,
+    )
+}
+
+/// Scan a selection of files and directories in one progress stream.
+///
+/// Paths should be canonical. Overlapping selections produce one outcome per file.
+///
+/// # Errors
+/// Returns a callback error if the scan cannot write a file outcome.
+pub fn scan_paths<E>(
+    roots: &[PathBuf],
+    previous: &HashMap<PathBuf, CachedTrack>,
+    known_artwork: &HashSet<String>,
+    include: impl Fn(&Path) -> bool + Send,
     mut on_progress: impl FnMut(ScanProgress),
     mut on_file: impl FnMut(ScannedFile) -> Result<(), E>,
 ) -> Result<Vec<WalkError>, E> {
-    let discovered = Mutex::new((0, root.to_owned()));
+    let first = roots.first().cloned().unwrap_or_default();
+    let discovered = Mutex::new((0, first.clone()));
     let mut progress = ScanProgress {
         scanned: 0,
         total_estimate: 0,
-        current_path: root.to_owned(),
+        current_path: first,
     };
     on_progress(progress.clone());
     thread::scope(|scope| {
         let (send, receive) = mpsc::sync_channel(64);
         let discovered = &discovered;
         let worker = scope.spawn(move || {
-            let mut paths = Vec::new();
+            let mut paths = HashSet::new();
             let mut walk_errors = Vec::new();
-            for entry in WalkDir::new(root).follow_root_links(false) {
+            for entry in roots
+                .iter()
+                .flat_map(|root| WalkDir::new(root).follow_root_links(false))
+            {
                 match entry {
-                    Ok(entry) if entry.file_type().is_file() && supported(entry.path()) => {
+                    Ok(entry)
+                        if entry.file_type().is_file()
+                            && supported(entry.path())
+                            && include(entry.path()) =>
+                    {
                         let path = entry.into_path();
-                        {
+                        if paths.insert(path.clone()) {
                             let mut found =
                                 discovered.lock().unwrap_or_else(|err| err.into_inner());
-                            *found = (paths.len() + 1, path.clone());
+                            *found = (paths.len(), path);
                         }
-                        paths.push(path);
                     }
                     Ok(_) => {}
                     Err(error) => walk_errors.push(error),

@@ -20,10 +20,12 @@ mt-app.workspace = true
 mt-audio.workspace = true
 mt-meta.workspace = true
 mt-types.workspace = true
+notify = "=8.2.2"
 serde.workspace = true
 serde_json.workspace = true
 specta.workspace = true
 tauri = { version = "=2.12.6", features = [] }
+tauri-plugin-dialog = "=2.8.4"
 tauri-plugin-single-instance = "=2.5.5"
 tauri-plugin-window-state = "=2.5.0"
 tauri-specta = { version = "=2.0.0-rc.29", features = ["derive", "typescript"] }

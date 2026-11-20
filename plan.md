@@ -419,6 +419,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
   - AC1: File ▸ Add Folder to Library… (Tauri `dialog` plugin) and drag-and-drop of files or folders onto the window (Tauri drag-drop event) both start a scan with a progress indicator in the LCD panel ("Importing 312 of 1,204").
   - AC2: Preferences ▸ Library lets me choose **"Copy files to MyTunes Media folder when adding"** (default off) and add or remove watched folders (notify-based in Rust, debounced 2 s) 🧪.
   - AC3: Duplicate paths are ignored. A duplicate content hash shows a "Duplicate found" note but still imports.
+  - _Status 2026-11-19: Native File menu import, mixed file-and-folder drop, LCD progress, duplicate notice, and copy/watch preferences passed Linux verification. The watcher waited two seconds after the last change. Native macOS and Windows verification and hosted CI are pending. See ADR-0022._
 - [ ] **E7.S4 Track table.** As a user, I want a fast, sortable, configurable song list so that big libraries stay manageable.
   - AC1: The `VirtualTable` component is built in-house (from the spike), with fixed row height, overscan, and keyboard focus that survives scrolling. Only visible rows plus overscan are in the DOM 🧪 (Vitest: 50k rows render ≤ 80 row elements).
   - AC2: Columns: ✓ (include in sync), Name, Time, Artist, Album, Album Artist, Genre, Year, Track #, Rating (5 stars), Plays, Last Played, Date Added, Kind (codec + bitrate), Size. Right-click the header to toggle columns.

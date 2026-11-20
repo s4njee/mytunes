@@ -250,6 +250,14 @@
   inline-size: 100%;
 }
 
+.import-progress {
+  display: block;
+  inline-size: 100%;
+  block-size: 0.4rem;
+  margin-block-start: var(--mt-desktop-space-small);
+  accent-color: var(--mt-accent);
+}
+
 .library-tools {
   justify-content: flex-end;
   gap: var(--mt-desktop-space-small);
@@ -690,9 +698,69 @@
   text-align: start;
 }
 
+.theme-options {
+  display: grid;
+  gap: var(--mt-desktop-space-tight);
+}
+
 .appearance-options button:hover,
 .appearance-options button[aria-pressed="true"] {
   background: var(--mt-desktop-soft-accent);
+}
+
+.import-options {
+  display: grid;
+  gap: var(--mt-desktop-space-small);
+  inline-size: min(22rem, 45vw);
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--mt-desktop-space-small);
+  border: var(--rule);
+}
+
+.copy-files {
+  display: flex;
+  align-items: center;
+  gap: var(--mt-desktop-space-tight);
+}
+
+.watched-folders-label {
+  color: var(--mt-desktop-secondary);
+}
+
+.watched-folders {
+  display: grid;
+  max-block-size: 7rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.watched-folders:empty {
+  display: none;
+}
+
+.watched-folders li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mt-desktop-space-tight);
+}
+
+.watched-folders li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appearance-options .add-watch {
+  justify-self: start;
+  border: var(--rule);
+}
+
+.import-options p {
+  margin: 0;
 }
 
 @media (max-width: 1050px) {

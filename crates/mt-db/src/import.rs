@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io;
+use std::io::{self, Seek};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use crate::artwork::{INSERT_ARTWORK, assign_album_artwork, source_priority};
 use mt_meta::artwork::{ArtworkSource, TrackArtwork};
 use mt_meta::scan::{
-    CachedTrack, FileStamp, ReadTrack, ScanFileError, ScanProgress, WalkError, scan_tree,
+    CachedTrack, FileStamp, ReadTrack, ScanFileError, ScanProgress, WalkError, scan_paths,
 };
 use rusqlite::{Connection, TransactionBehavior, named_params};
 
@@ -16,6 +16,8 @@ use rusqlite::{Connection, TransactionBehavior, named_params};
 pub struct FolderImport {
     /// Number of tracks inserted or refreshed from a successful file read.
     pub read: usize,
+    /// New paths whose content hash matched a track already in the library.
+    pub duplicates: usize,
     /// Number of files whose size and mtime matched the library.
     pub unchanged: usize,
     /// Number of existing tracks newly marked missing.
@@ -59,18 +61,86 @@ pub fn scan_library_folder(
     folder: impl AsRef<Path>,
     on_progress: impl FnMut(ScanProgress),
 ) -> Result<FolderImport, ImportError> {
-    let requested = folder.as_ref();
-    let root = requested
-        .canonicalize()
-        .map_err(|source| ImportError::Folder {
-            path: requested.to_owned(),
-            source,
-        })?;
+    let root = resolve(folder.as_ref())?;
     check_folder(&root)?;
+    scan_selection(
+        db,
+        std::slice::from_ref(&root),
+        std::slice::from_ref(&root),
+        None,
+        on_progress,
+    )
+}
 
+/// Location and copy preference for music imported through the desktop app.
+pub struct ManagedMedia<'a> {
+    /// Absolute location of MyTunes Media.
+    pub folder: &'a Path,
+    /// Whether to copy new paths into MyTunes Media.
+    pub copy_files: bool,
+}
+
+/// Import files or folders. Only directory selections reconcile missing tracks.
+///
+/// # Errors
+/// Returns an error if a scan cannot safely reconcile its roots or commit to SQLite.
+pub fn import_library_paths(
+    db: &mut Connection,
+    paths: &[PathBuf],
+    media: &ManagedMedia<'_>,
+    on_progress: impl FnMut(ScanProgress),
+) -> Result<FolderImport, ImportError> {
+    let mut roots = Vec::new();
+    let mut folders = Vec::new();
+    let mut errors = Vec::new();
+    for path in paths {
+        let resolved = resolve(path).and_then(|path| {
+            if path.is_dir() {
+                check_folder(&path)?;
+                folders.push(path.clone());
+            }
+            Ok(path)
+        });
+        match resolved {
+            Ok(path) => roots.push(path),
+            Err(ImportError::Folder { path, source }) => {
+                errors.push((path, ScanFileError::Io(source)))
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    let folder = media
+        .folder
+        .canonicalize()
+        .unwrap_or_else(|_| media.folder.to_owned());
+    let media = ManagedMedia {
+        folder: &folder,
+        copy_files: media.copy_files,
+    };
+    let mut report = scan_selection(db, &roots, &folders, Some(&media), on_progress)?;
+    report.file_errors.extend(errors);
+    Ok(report)
+}
+
+fn resolve(path: &Path) -> Result<PathBuf, ImportError> {
+    path.canonicalize().map_err(|source| ImportError::Folder {
+        path: path.to_owned(),
+        source,
+    })
+}
+
+fn scan_selection(
+    db: &mut Connection,
+    roots: &[PathBuf],
+    folders: &[PathBuf],
+    media: Option<&ManagedMedia<'_>>,
+    on_progress: impl FnMut(ScanProgress),
+) -> Result<FolderImport, ImportError> {
     let transaction = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let mut copied = PendingCopies::default();
     let mut existing = HashMap::new();
     let mut previous = HashMap::new();
+    let mut copies = HashSet::new();
     {
         let mut select = transaction.prepare(
             "SELECT file_path, size_bytes, file_mtime_ns, file_hash IS NOT NULL, missing,
@@ -80,13 +150,17 @@ pub fn scan_library_folder(
         let mut rows = select.query([])?;
         while let Some(row) = rows.next()? {
             let path = PathBuf::from(row.get::<_, String>(0)?);
-            if path == root || !path.starts_with(&root) {
+            let missing = row.get::<_, bool>(4)?;
+            if !missing && media.is_some_and(|media| path.starts_with(media.folder)) {
+                copies.insert(path.clone());
+            }
+            if !roots.contains(&path) && !folders.iter().any(|root| path.starts_with(root)) {
                 continue;
             }
             let size_bytes = row.get::<_, Option<i64>>(1)?;
             let mtime_ns = row.get::<_, Option<i64>>(2)?;
             let has_hash = row.get::<_, bool>(3)?;
-            existing.insert(path.clone(), row.get::<_, bool>(4)?);
+            existing.insert(path.clone(), missing);
             if let (Some(size_bytes), Some(mtime_ns), true) = (size_bytes, mtime_ns, has_hash) {
                 previous.insert(
                     path,
@@ -121,26 +195,69 @@ pub fn scan_library_folder(
         )?;
         let mut set_missing = transaction
             .prepare("UPDATE tracks SET missing = ?1 WHERE file_path = ?2 AND missing <> ?1")?;
+        let mut track_exists =
+            transaction.prepare("SELECT EXISTS(SELECT 1 FROM tracks WHERE file_path = ?1)")?;
+        let mut duplicate_hash = transaction.prepare(
+            "SELECT EXISTS(SELECT 1 FROM tracks WHERE file_hash = ?1 AND file_path <> ?2 AND missing = 0)",
+        )?;
         let added_at_ms = SystemTime::UNIX_EPOCH
             .elapsed()
             .ok()
             .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok());
-        report.walk_errors = scan_tree(
-            &root,
+        report.walk_errors = scan_paths(
+            roots,
             &previous,
             &known_artwork,
+            |path| {
+                !media
+                    .and_then(|media| managed_path(media.folder, path))
+                    .is_some_and(|destination| {
+                        copies.contains(&destination) && destination.is_file()
+                    })
+            },
             on_progress,
-            |file| -> rusqlite::Result<()> {
-                let was_missing = existing.remove(&file.path) == Some(true);
+            |mut file| -> rusqlite::Result<()> {
+                let existing_path = existing.remove(&file.path);
+                let was_missing = existing_path == Some(true);
                 let artwork = file.artwork.as_deref();
+                let mut copied_path = None;
+                if let (Some(media), None, Ok(Some(track))) =
+                    (media, existing_path, &mut file.result)
+                    && let Some(destination) = managed_path(media.folder, &file.path)
+                {
+                    let prior = track_exists
+                        .query_row([destination.to_str()], |row| row.get::<_, bool>(0))?;
+                    if media.copy_files || prior {
+                        match copy_media(&file.path, &destination, track) {
+                            Ok(true) => copied.0.push(destination.clone()),
+                            Ok(false) => {}
+                            Err(error) => {
+                                report.file_errors.push((file.path, error));
+                                return Ok(());
+                            }
+                        }
+                        copied_path = Some(destination);
+                    }
+                }
+                let stored_path = copied_path.as_deref().unwrap_or(&file.path);
                 if let Some(cover) = artwork
                     && let Some(jpeg) = cover.thumbnails.as_ref()
                     && stored.insert(cover.id.clone())
                 {
                     insert_artwork.execute((&cover.id, &jpeg.small, &jpeg.large))?;
                 }
-                match (file.result, file.path.to_str()) {
+                match (file.result, stored_path.to_str()) {
                     (Ok(Some(track)), Some(path)) => {
+                        if existing_path.is_none()
+                            && !track_exists.query_row([path], |row| row.get::<_, bool>(0))?
+                            && duplicate_hash
+                                .query_row((&track.hash[..], path), |row| row.get::<_, bool>(0))?
+                        {
+                            report.duplicates += 1;
+                        }
+                        if copied_path.is_some() {
+                            existing.remove(stored_path);
+                        }
                         save_track(&mut upsert, path, &track, added_at_ms, artwork, true)?;
                         artwork_dirty = true;
                         report.read += 1;
@@ -169,10 +286,12 @@ pub fn scan_library_folder(
             },
         )?;
 
-        check_folder(&root)?;
+        for root in folders {
+            check_folder(root)?;
+        }
         if report.walk_errors.is_empty() {
             for (path, missing) in existing {
-                if missing {
+                if missing || !folders.iter().any(|root| path.starts_with(root)) {
                     continue;
                 }
                 match missing_file(&path) {
@@ -193,8 +312,88 @@ pub fn scan_library_folder(
     {
         assign_album_artwork(&transaction)?;
     }
-    transaction.commit()?;
+    // Clean up new copies before the transaction's rollback releases the writer lock.
+    transaction.execute_batch("COMMIT")?;
+    copied.0.clear();
     Ok(report)
+}
+
+#[derive(Default)]
+struct PendingCopies(Vec<PathBuf>);
+
+impl Drop for PendingCopies {
+    fn drop(&mut self) {
+        for path in &self.0 {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+fn managed_path(media: &Path, source: &Path) -> Option<PathBuf> {
+    if source.starts_with(media) {
+        return None;
+    }
+    let digest = blake3::hash(source.to_str()?.as_bytes());
+    Some(
+        media
+            .join(digest.to_hex().as_str())
+            .join(source.file_name()?),
+    )
+}
+
+fn copy_media(
+    source: &Path,
+    destination: &Path,
+    track: &mut ReadTrack,
+) -> Result<bool, ScanFileError> {
+    if destination.to_str().is_none() {
+        return Err(ScanFileError::NonUtf8Path);
+    }
+    let parent = destination
+        .parent()
+        .ok_or_else(|| io::Error::other("missing media folder"))?;
+    fs::create_dir_all(parent)?;
+    if !fs::symlink_metadata(parent)?.is_dir() {
+        return Err(io::Error::other("invalid managed media directory").into());
+    }
+    match fs::symlink_metadata(destination) {
+        Ok(metadata) if metadata.is_file() => {
+            let mut hash = blake3::Hasher::new();
+            hash.update_reader(fs::File::open(destination)?)?;
+            if hash.finalize().as_bytes() == &track.hash {
+                track.stamp = FileStamp::from_metadata(&metadata)?;
+                return Ok(false);
+            }
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "managed media path contains another file",
+            )
+            .into());
+        }
+        Ok(_) => {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "managed media path is occupied",
+            )
+            .into());
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    let mut staged = tempfile::NamedTempFile::new_in(parent)?;
+    io::copy(&mut fs::File::open(source)?, &mut staged)?;
+    staged.rewind()?;
+    let mut hash = blake3::Hasher::new();
+    hash.update_reader(&mut staged)?;
+    if hash.finalize().as_bytes() != &track.hash {
+        return Err(ScanFileError::ChangedDuringRead);
+    }
+    staged.as_file().sync_all()?;
+    track.stamp = FileStamp::from_metadata(&staged.as_file().metadata()?)?;
+    staged
+        .persist_noclobber(destination)
+        .map_err(|error| error.error)?;
+    Ok(true)
 }
 
 fn check_folder(path: &Path) -> Result<(), ImportError> {

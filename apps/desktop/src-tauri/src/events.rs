@@ -10,6 +10,28 @@ use specta::Type;
 use tauri::ipc::Channel;
 use tauri_specta::Event;
 
+/// Progress or terminal outcome of a library import.
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum ScanUpdate {
+    /// The scanner is discovering or processing files.
+    Scanning {
+        /// Current counts and source path.
+        progress: ScanProgress,
+    },
+    /// The scan has committed the readable files to the library.
+    Finished {
+        /// New paths with the same content as another library track.
+        #[specta(type = specta_typescript::Number)]
+        duplicates: usize,
+        /// Paths that could not be accessed, read, or copied.
+        #[specta(type = specta_typescript::Number)]
+        errors: usize,
+    },
+    /// The import could not be committed.
+    Failed,
+}
+
 /// Notifies the UI to discard pages after the library changes.
 #[derive(Clone, Debug, Deserialize, Serialize, Type, Event)]
 pub struct LibraryChanged {
@@ -87,7 +109,7 @@ pub struct DesktopChannels {
     /// Transport snapshots and position updates.
     pub player: DesktopStream<PlayerEvent>,
     /// Progress for the active library scan.
-    pub scan: DesktopStream<ScanProgress>,
+    pub scan: DesktopStream<ScanUpdate>,
     /// Progress for the active sync session.
     pub sync: DesktopStream<SyncProgress>,
 }

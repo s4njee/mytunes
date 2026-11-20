@@ -13,6 +13,7 @@ const DESKTOP_SCHEMA: Schema = Schema {
         (2, include_str!("../migrations/desktop/V2.sql")),
         (3, include_str!("../migrations/desktop/V3.sql")),
         (4, include_str!("../migrations/desktop/V4.sql")),
+        (5, include_str!("../migrations/desktop/V5.sql")),
     ],
 };
 
