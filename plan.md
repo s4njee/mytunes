@@ -378,7 +378,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
 
 ### M2 — Desktop MVP (Tauri 2 + SolidJS 2.0)
 
-_Implementation complete as of 2026-11-20. The Linux desktop works through import, browsing, search, playback, media controls, and library statistics. A Linux x64 AppImage is available locally. The playback build passed on Apple Silicon and the final Windows x64 cross-build passed. Native macOS and Windows verification and hosted CI remain open._
+_Implementation complete as of 2026-11-20. The Linux desktop works through import, browsing, search, playback, media controls, and library statistics. A Linux x64 AppImage is available locally. Native macOS and Windows verification remains open. [Hosted CI passed](https://github.com/s4njee/mytunes/actions/runs/44746703221)._
 
 > Frontend rules: no domain logic in TS. The frontend renders state and calls typed commands. Sorting, filtering, counting and every file operation happen in Rust (`mt-app`). Components use only `tokens.css` variables for colour, type, spacing and radius.
 
@@ -459,6 +459,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC3: Fonts: IBM Plex Sans 400/500/600/700, JetBrains Mono 400/500 bundled. The OFL licence is included in the app's licences page.
   - AC4: Portrait-locked for v1 (landscape is a design gap).
   - AC5: Golden tests for each screen in both themes, at 402×874 logical px, against `design/handoff/screens/`. Tolerance ≤ 1.5% pixel diff, excluding album-art placeholders 🧪.
+  - _Status 2026-11-20: The shared portrait shell, system appearance, native status bar, bundled fonts, and font licences are implemented. Both themes and the portrait lock passed on an Android emulator. Physical device verification and the five-screen golden comparisons remain open. The reference PNGs are absent from the checkout. See ADR-0027._
 - [ ] **E5.S2 Rust bridge facade.** As the Flutter app, I want a narrow, async Rust API so that UI code stays simple.
   - AC1: `mt-ffi` exposes: `open_device_db(path)`, `library_counts()`, `albums(page)`, `album_tracks(id)`, `artists()`, `songs(page)`, `playlists()`, `playlist_tracks(id)`, `artwork_path(id, size)`, the player API (§3.4), `player_events() -> Stream`, `settings_get/set`, `record_event(...)`, and the sync client API (M4).
   - AC2: All calls are async and never block the UI isolate. A test calls each from Dart 🧪.
