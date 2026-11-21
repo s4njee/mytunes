@@ -3,6 +3,9 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/dev_import.dart';
+import 'api/device.dart';
+import 'api/playback.dart';
 import 'api/simple.dart';
 
 import 'dart:async';
@@ -69,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 2122441163;
+  int get rustContentHash => -1214189506;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -81,11 +84,157 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  Future<List<DeviceTrack>> crateApiDeviceDeviceLibraryAlbumTracks({
+    required DeviceLibrary that,
+    required AlbumId id,
+  });
+
+  Future<List<DeviceAlbum>> crateApiDeviceDeviceLibraryAlbums({
+    required DeviceLibrary that,
+    required LibraryPage page,
+  });
+
+  Future<List<DeviceArtist>> crateApiDeviceDeviceLibraryArtists({
+    required DeviceLibrary that,
+  });
+
+  Future<String?> crateApiDeviceDeviceLibraryArtworkPath({
+    required DeviceLibrary that,
+    required String id,
+    required ThumbnailSize size,
+  });
+
+  Future<void> crateApiDeviceDeviceLibraryClose({required DeviceLibrary that});
+
+  Future<DevImportReport> crateApiDeviceDeviceLibraryImportDevFiles({
+    required DeviceLibrary that,
+    required List<String> paths,
+  });
+
+  Future<LibraryCounts> crateApiDeviceDeviceLibraryLibraryCounts({
+    required DeviceLibrary that,
+  });
+
+  Future<void> crateApiDeviceDeviceLibraryLoadQueue({
+    required DeviceLibrary that,
+    required List<String> trackIds,
+    required int startIndex,
+  });
+
+  Future<void> crateApiDeviceDeviceLibraryNext({required DeviceLibrary that});
+
+  Future<void> crateApiDeviceDeviceLibraryPause({required DeviceLibrary that});
+
+  Future<void> crateApiDeviceDeviceLibraryPlay({required DeviceLibrary that});
+
+  Future<void> crateApiDeviceDeviceLibraryPlayClick({
+    required DeviceLibrary that,
+  });
+
+  Future<List<DeviceTrack>> crateApiDeviceDeviceLibraryPlaylistTracks({
+    required DeviceLibrary that,
+    required String id,
+  });
+
+  Future<List<DevicePlaylist>> crateApiDeviceDeviceLibraryPlaylists({
+    required DeviceLibrary that,
+  });
+
+  Future<void> crateApiDeviceDeviceLibraryPrev({required DeviceLibrary that});
+
+  Future<void> crateApiDeviceDeviceLibraryRecordEvent({
+    required DeviceLibrary that,
+    required LibraryEvent event,
+  });
+
+  Future<void> crateApiDeviceDeviceLibrarySeek({
+    required DeviceLibrary that,
+    required BigInt positionMs,
+  });
+
+  Future<void> crateApiDeviceDeviceLibrarySetEq({
+    required DeviceLibrary that,
+    required List<int> gains,
+  });
+
+  Future<void> crateApiDeviceDeviceLibrarySetFlags({
+    required DeviceLibrary that,
+    required bool gapless,
+    required PlaybackSoundCheck soundCheck,
+    required double volumeLimit,
+  });
+
+  Future<void> crateApiDeviceDeviceLibrarySetRepeat({
+    required DeviceLibrary that,
+    required PlaybackRepeat mode,
+  });
+
+  Future<void> crateApiDeviceDeviceLibrarySetShuffle({
+    required DeviceLibrary that,
+    required PlaybackShuffle mode,
+  });
+
+  Future<void> crateApiDeviceDeviceLibrarySetVolume({
+    required DeviceLibrary that,
+    required double volume,
+  });
+
+  Future<String?> crateApiDeviceDeviceLibrarySettingsGet({
+    required DeviceLibrary that,
+    required String key,
+  });
+
+  Future<void> crateApiDeviceDeviceLibrarySettingsSet({
+    required DeviceLibrary that,
+    required String key,
+    required String valueJson,
+  });
+
+  Future<List<DeviceTrack>> crateApiDeviceDeviceLibrarySongs({
+    required DeviceLibrary that,
+    required LibraryPage page,
+  });
+
+  Future<PlayerEventSubscription> crateApiDeviceDeviceLibrarySubscribePlayer({
+    required DeviceLibrary that,
+  });
+
+  Future<void> crateApiDeviceDeviceLibraryToggle({required DeviceLibrary that});
+
+  Future<List<DeviceTrack>> crateApiDeviceDeviceLibraryTracksByIds({
+    required DeviceLibrary that,
+    required List<String> ids,
+  });
+
+  Future<Stream<PlaybackEvent>> crateApiPlaybackPlayerEventSubscriptionStream({
+    required PlayerEventSubscription that,
+  });
+
   String crateApiSimpleCoreVersion();
 
   Future<void> crateApiSimpleInitApp();
 
+  Future<DeviceLibrary> crateApiDeviceOpenDeviceDb({required String path});
+
   String crateApiSimplePing();
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_DeviceLibrary;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_DeviceLibrary;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_DeviceLibraryPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_PlayerEventSubscription;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_PlayerEventSubscription;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_PlayerEventSubscriptionPtr;
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -97,12 +246,1079 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  Future<List<DeviceTrack>> crateApiDeviceDeviceLibraryAlbumTracks({
+    required DeviceLibrary that,
+    required AlbumId id,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_album_id(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_device_track,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryAlbumTracksConstMeta,
+        argValues: [that, id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryAlbumTracksConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_album_tracks",
+        argNames: ["that", "id"],
+      );
+
+  @override
+  Future<List<DeviceAlbum>> crateApiDeviceDeviceLibraryAlbums({
+    required DeviceLibrary that,
+    required LibraryPage page,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_library_page(page, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_device_album,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryAlbumsConstMeta,
+        argValues: [that, page],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryAlbumsConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_albums",
+        argNames: ["that", "page"],
+      );
+
+  @override
+  Future<List<DeviceArtist>> crateApiDeviceDeviceLibraryArtists({
+    required DeviceLibrary that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_device_artist,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryArtistsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryArtistsConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_artists",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<String?> crateApiDeviceDeviceLibraryArtworkPath({
+    required DeviceLibrary that,
+    required String id,
+    required ThumbnailSize size,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_String(id, serializer);
+          sse_encode_thumbnail_size(size, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryArtworkPathConstMeta,
+        argValues: [that, id, size],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryArtworkPathConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_artwork_path",
+        argNames: ["that", "id", "size"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibraryClose({required DeviceLibrary that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryCloseConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryCloseConstMeta =>
+      const TaskConstMeta(debugName: "DeviceLibrary_close", argNames: ["that"]);
+
+  @override
+  Future<DevImportReport> crateApiDeviceDeviceLibraryImportDevFiles({
+    required DeviceLibrary that,
+    required List<String> paths,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_list_String(paths, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_dev_import_report,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryImportDevFilesConstMeta,
+        argValues: [that, paths],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryImportDevFilesConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_import_dev_files",
+        argNames: ["that", "paths"],
+      );
+
+  @override
+  Future<LibraryCounts> crateApiDeviceDeviceLibraryLibraryCounts({
+    required DeviceLibrary that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_library_counts,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryLibraryCountsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryLibraryCountsConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_library_counts",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibraryLoadQueue({
+    required DeviceLibrary that,
+    required List<String> trackIds,
+    required int startIndex,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_list_String(trackIds, serializer);
+          sse_encode_u_32(startIndex, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 8,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryLoadQueueConstMeta,
+        argValues: [that, trackIds, startIndex],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryLoadQueueConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_load_queue",
+        argNames: ["that", "trackIds", "startIndex"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibraryNext({required DeviceLibrary that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 9,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryNextConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryNextConstMeta =>
+      const TaskConstMeta(debugName: "DeviceLibrary_next", argNames: ["that"]);
+
+  @override
+  Future<void> crateApiDeviceDeviceLibraryPause({required DeviceLibrary that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryPauseConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryPauseConstMeta =>
+      const TaskConstMeta(debugName: "DeviceLibrary_pause", argNames: ["that"]);
+
+  @override
+  Future<void> crateApiDeviceDeviceLibraryPlay({required DeviceLibrary that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 11,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryPlayConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryPlayConstMeta =>
+      const TaskConstMeta(debugName: "DeviceLibrary_play", argNames: ["that"]);
+
+  @override
+  Future<void> crateApiDeviceDeviceLibraryPlayClick({
+    required DeviceLibrary that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryPlayClickConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryPlayClickConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_play_click",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<List<DeviceTrack>> crateApiDeviceDeviceLibraryPlaylistTracks({
+    required DeviceLibrary that,
+    required String id,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_device_track,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryPlaylistTracksConstMeta,
+        argValues: [that, id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryPlaylistTracksConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_playlist_tracks",
+        argNames: ["that", "id"],
+      );
+
+  @override
+  Future<List<DevicePlaylist>> crateApiDeviceDeviceLibraryPlaylists({
+    required DeviceLibrary that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_device_playlist,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryPlaylistsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryPlaylistsConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_playlists",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibraryPrev({required DeviceLibrary that}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryPrevConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryPrevConstMeta =>
+      const TaskConstMeta(debugName: "DeviceLibrary_prev", argNames: ["that"]);
+
+  @override
+  Future<void> crateApiDeviceDeviceLibraryRecordEvent({
+    required DeviceLibrary that,
+    required LibraryEvent event,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_library_event(event, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryRecordEventConstMeta,
+        argValues: [that, event],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryRecordEventConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_record_event",
+        argNames: ["that", "event"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibrarySeek({
+    required DeviceLibrary that,
+    required BigInt positionMs,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_u_64(positionMs, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibrarySeekConstMeta,
+        argValues: [that, positionMs],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibrarySeekConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_seek",
+        argNames: ["that", "positionMs"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibrarySetEq({
+    required DeviceLibrary that,
+    required List<int> gains,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_list_prim_i_8_loose(gains, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibrarySetEqConstMeta,
+        argValues: [that, gains],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibrarySetEqConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_set_eq",
+        argNames: ["that", "gains"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibrarySetFlags({
+    required DeviceLibrary that,
+    required bool gapless,
+    required PlaybackSoundCheck soundCheck,
+    required double volumeLimit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_bool(gapless, serializer);
+          sse_encode_playback_sound_check(soundCheck, serializer);
+          sse_encode_f_32(volumeLimit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibrarySetFlagsConstMeta,
+        argValues: [that, gapless, soundCheck, volumeLimit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibrarySetFlagsConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_set_flags",
+        argNames: ["that", "gapless", "soundCheck", "volumeLimit"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibrarySetRepeat({
+    required DeviceLibrary that,
+    required PlaybackRepeat mode,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_playback_repeat(mode, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 20,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibrarySetRepeatConstMeta,
+        argValues: [that, mode],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibrarySetRepeatConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_set_repeat",
+        argNames: ["that", "mode"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibrarySetShuffle({
+    required DeviceLibrary that,
+    required PlaybackShuffle mode,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_playback_shuffle(mode, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 21,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibrarySetShuffleConstMeta,
+        argValues: [that, mode],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibrarySetShuffleConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_set_shuffle",
+        argNames: ["that", "mode"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibrarySetVolume({
+    required DeviceLibrary that,
+    required double volume,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_f_32(volume, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 22,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibrarySetVolumeConstMeta,
+        argValues: [that, volume],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibrarySetVolumeConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_set_volume",
+        argNames: ["that", "volume"],
+      );
+
+  @override
+  Future<String?> crateApiDeviceDeviceLibrarySettingsGet({
+    required DeviceLibrary that,
+    required String key,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_String(key, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 23,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibrarySettingsGetConstMeta,
+        argValues: [that, key],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibrarySettingsGetConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_settings_get",
+        argNames: ["that", "key"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibrarySettingsSet({
+    required DeviceLibrary that,
+    required String key,
+    required String valueJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_String(key, serializer);
+          sse_encode_String(valueJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 24,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibrarySettingsSetConstMeta,
+        argValues: [that, key, valueJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibrarySettingsSetConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_settings_set",
+        argNames: ["that", "key", "valueJson"],
+      );
+
+  @override
+  Future<List<DeviceTrack>> crateApiDeviceDeviceLibrarySongs({
+    required DeviceLibrary that,
+    required LibraryPage page,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_library_page(page, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 25,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_device_track,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibrarySongsConstMeta,
+        argValues: [that, page],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibrarySongsConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_songs",
+        argNames: ["that", "page"],
+      );
+
+  @override
+  Future<PlayerEventSubscription> crateApiDeviceDeviceLibrarySubscribePlayer({
+    required DeviceLibrary that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 26,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibrarySubscribePlayerConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibrarySubscribePlayerConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_subscribe_player",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiDeviceDeviceLibraryToggle({
+    required DeviceLibrary that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryToggleConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryToggleConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_toggle",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<List<DeviceTrack>> crateApiDeviceDeviceLibraryTracksByIds({
+    required DeviceLibrary that,
+    required List<String> ids,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_list_String(ids, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 28,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_device_track,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryTracksByIdsConstMeta,
+        argValues: [that, ids],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryTracksByIdsConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_tracks_by_ids",
+        argNames: ["that", "ids"],
+      );
+
+  @override
+  Future<Stream<PlaybackEvent>> crateApiPlaybackPlayerEventSubscriptionStream({
+    required PlayerEventSubscription that,
+  }) async {
+    final sink = RustStreamSink<PlaybackEvent>();
+    await handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription(
+            that,
+            serializer,
+          );
+          sse_encode_StreamSink_playback_event_Sse(sink, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 29,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiPlaybackPlayerEventSubscriptionStreamConstMeta,
+        argValues: [that, sink],
+        apiImpl: this,
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiPlaybackPlayerEventSubscriptionStreamConstMeta =>
+      const TaskConstMeta(
+        debugName: "PlayerEventSubscription_stream",
+        argNames: ["that", "sink"],
+      );
+
+  @override
   String crateApiSimpleCoreVersion() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -127,7 +1343,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 31,
             port: port_,
           );
         },
@@ -146,12 +1362,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
+  Future<DeviceLibrary> crateApiDeviceOpenDeviceDb({required String path}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(path, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 32,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceOpenDeviceDbConstMeta,
+        argValues: [path],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceOpenDeviceDbConstMeta =>
+      const TaskConstMeta(debugName: "open_device_db", argNames: ["path"]);
+
+  @override
   String crateApiSimplePing() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -167,6 +1412,96 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiSimplePingConstMeta =>
       const TaskConstMeta(debugName: "ping", argNames: []);
 
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_DeviceLibrary => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_DeviceLibrary => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_PlayerEventSubscription => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_PlayerEventSubscription => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription;
+
+  @protected
+  AnyhowException dco_decode_AnyhowException(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return AnyhowException(raw as String);
+  }
+
+  @protected
+  DeviceLibrary
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return DeviceLibraryImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  PlayerEventSubscription
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PlayerEventSubscriptionImpl.frbInternalDcoDecode(
+      raw as List<dynamic>,
+    );
+  }
+
+  @protected
+  DeviceLibrary
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return DeviceLibraryImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  PlayerEventSubscription
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PlayerEventSubscriptionImpl.frbInternalDcoDecode(
+      raw as List<dynamic>,
+    );
+  }
+
+  @protected
+  DeviceLibrary
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return DeviceLibraryImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  PlayerEventSubscription
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PlayerEventSubscriptionImpl.frbInternalDcoDecode(
+      raw as List<dynamic>,
+    );
+  }
+
+  @protected
+  RustStreamSink<PlaybackEvent> dco_decode_StreamSink_playback_event_Sse(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
   @protected
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -174,9 +1509,338 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AlbumId dco_decode_album_id(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return AlbumId(
+      title: dco_decode_String(arr[0]),
+      artist: dco_decode_opt_String(arr[1]),
+      year: dco_decode_opt_box_autoadd_i_32(arr[2]),
+      compilation: dco_decode_bool(arr[3]),
+    );
+  }
+
+  @protected
+  bool dco_decode_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as bool;
+  }
+
+  @protected
+  AlbumId dco_decode_box_autoadd_album_id(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_album_id(raw);
+  }
+
+  @protected
+  int dco_decode_box_autoadd_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_i_64(raw);
+  }
+
+  @protected
+  LibraryEvent dco_decode_box_autoadd_library_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_library_event(raw);
+  }
+
+  @protected
+  LibraryPage dco_decode_box_autoadd_library_page(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_library_page(raw);
+  }
+
+  @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  DevImportReport dco_decode_dev_import_report(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return DevImportReport(
+      imported: dco_decode_u_32(arr[0]),
+      unchanged: dco_decode_u_32(arr[1]),
+      errors: dco_decode_list_String(arr[2]),
+    );
+  }
+
+  @protected
+  DeviceAlbum dco_decode_device_album(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return DeviceAlbum(
+      id: dco_decode_album_id(arr[0]),
+      trackCount: dco_decode_u_32(arr[1]),
+      artworkId: dco_decode_opt_String(arr[2]),
+    );
+  }
+
+  @protected
+  DeviceArtist dco_decode_device_artist(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return DeviceArtist(
+      name: dco_decode_String(arr[0]),
+      trackCount: dco_decode_u_32(arr[1]),
+    );
+  }
+
+  @protected
+  DevicePlaylist dco_decode_device_playlist(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return DevicePlaylist(
+      id: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      kind: dco_decode_String(arr[2]),
+      parentId: dco_decode_opt_String(arr[3]),
+      trackCount: dco_decode_u_32(arr[4]),
+    );
+  }
+
+  @protected
+  DeviceTrack dco_decode_device_track(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    return DeviceTrack(
+      id: dco_decode_String(arr[0]),
+      title: dco_decode_opt_String(arr[1]),
+      artist: dco_decode_opt_String(arr[2]),
+      album: dco_decode_opt_String(arr[3]),
+      durationMs: dco_decode_opt_box_autoadd_i_64(arr[4]),
+      artworkId: dco_decode_opt_String(arr[5]),
+      codec: dco_decode_opt_String(arr[6]),
+      sampleRate: dco_decode_opt_box_autoadd_u_32(arr[7]),
+      bitDepth: dco_decode_opt_box_autoadd_u_32(arr[8]),
+      bitrate: dco_decode_opt_box_autoadd_u_32(arr[9]),
+      discNumber: dco_decode_opt_box_autoadd_u_32(arr[10]),
+      trackNumber: dco_decode_opt_box_autoadd_u_32(arr[11]),
+    );
+  }
+
+  @protected
+  double dco_decode_f_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
+  }
+
+  @protected
+  int dco_decode_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeI64(raw);
+  }
+
+  @protected
+  int dco_decode_i_8(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  LibraryCounts dco_decode_library_counts(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return LibraryCounts(
+      songs: dco_decode_u_32(arr[0]),
+      albums: dco_decode_u_32(arr[1]),
+      artists: dco_decode_u_32(arr[2]),
+      playlists: dco_decode_u_32(arr[3]),
+    );
+  }
+
+  @protected
+  LibraryEvent dco_decode_library_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return LibraryEvent(
+      id: dco_decode_String(arr[0]),
+      timestampMs: dco_decode_i_64(arr[1]),
+      kind: dco_decode_library_event_kind(arr[2]),
+      payloadJson: dco_decode_String(arr[3]),
+    );
+  }
+
+  @protected
+  LibraryEventKind dco_decode_library_event_kind(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return LibraryEventKind.values[raw as int];
+  }
+
+  @protected
+  LibraryPage dco_decode_library_page(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return LibraryPage(
+      offset: dco_decode_u_32(arr[0]),
+      limit: dco_decode_u_32(arr[1]),
+    );
+  }
+
+  @protected
+  List<String> dco_decode_list_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
+  List<DeviceAlbum> dco_decode_list_device_album(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_device_album).toList();
+  }
+
+  @protected
+  List<DeviceArtist> dco_decode_list_device_artist(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_device_artist).toList();
+  }
+
+  @protected
+  List<DevicePlaylist> dco_decode_list_device_playlist(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_device_playlist).toList();
+  }
+
+  @protected
+  List<DeviceTrack> dco_decode_list_device_track(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_device_track).toList();
+  }
+
+  @protected
+  List<int> dco_decode_list_prim_i_8_loose(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as List<int>;
+  }
+
+  @protected
+  Int8List dco_decode_list_prim_i_8_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as Int8List;
+  }
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
+  }
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  int? dco_decode_opt_box_autoadd_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_i_32(raw);
+  }
+
+  @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_i_64(raw);
+  }
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_u_32(raw);
+  }
+
+  @protected
+  PlaybackEvent dco_decode_playback_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return PlaybackEvent(
+      state: dco_decode_playback_state(arr[0]),
+      positionMs: dco_decode_u_64(arr[1]),
+      trackId: dco_decode_opt_String(arr[2]),
+      queueIndex: dco_decode_opt_box_autoadd_u_32(arr[3]),
+      pass: dco_decode_u_64(arr[4]),
+      playedMs: dco_decode_u_64(arr[5]),
+      volumePercent: dco_decode_u_8(arr[6]),
+      ended: dco_decode_bool(arr[7]),
+      skipped: dco_decode_bool(arr[8]),
+      error: dco_decode_opt_String(arr[9]),
+    );
+  }
+
+  @protected
+  PlaybackRepeat dco_decode_playback_repeat(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PlaybackRepeat.values[raw as int];
+  }
+
+  @protected
+  PlaybackShuffle dco_decode_playback_shuffle(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PlaybackShuffle.values[raw as int];
+  }
+
+  @protected
+  PlaybackSoundCheck dco_decode_playback_sound_check(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PlaybackSoundCheck.values[raw as int];
+  }
+
+  @protected
+  PlaybackState dco_decode_playback_state(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PlaybackState.values[raw as int];
+  }
+
+  @protected
+  ThumbnailSize dco_decode_thumbnail_size(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ThumbnailSize.values[raw as int];
+  }
+
+  @protected
+  int dco_decode_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  BigInt dco_decode_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeU64(raw);
   }
 
   @protected
@@ -192,6 +1856,99 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt dco_decode_usize(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeU64(raw);
+  }
+
+  @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_String(deserializer);
+    return AnyhowException(inner);
+  }
+
+  @protected
+  DeviceLibrary
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return DeviceLibraryImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  PlayerEventSubscription
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return PlayerEventSubscriptionImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  DeviceLibrary
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return DeviceLibraryImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  PlayerEventSubscription
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return PlayerEventSubscriptionImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  DeviceLibrary
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return DeviceLibraryImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  PlayerEventSubscription
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return PlayerEventSubscriptionImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  RustStreamSink<PlaybackEvent> sse_decode_StreamSink_playback_event_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
@@ -199,10 +1956,420 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AlbumId sse_decode_album_id(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_title = sse_decode_String(deserializer);
+    var var_artist = sse_decode_opt_String(deserializer);
+    var var_year = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_compilation = sse_decode_bool(deserializer);
+    return AlbumId(
+      title: var_title,
+      artist: var_artist,
+      year: var_year,
+      compilation: var_compilation,
+    );
+  }
+
+  @protected
+  bool sse_decode_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
+  AlbumId sse_decode_box_autoadd_album_id(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_album_id(deserializer));
+  }
+
+  @protected
+  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_i_32(deserializer));
+  }
+
+  @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_i_64(deserializer));
+  }
+
+  @protected
+  LibraryEvent sse_decode_box_autoadd_library_event(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_library_event(deserializer));
+  }
+
+  @protected
+  LibraryPage sse_decode_box_autoadd_library_page(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_library_page(deserializer));
+  }
+
+  @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_u_32(deserializer));
+  }
+
+  @protected
+  DevImportReport sse_decode_dev_import_report(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_imported = sse_decode_u_32(deserializer);
+    var var_unchanged = sse_decode_u_32(deserializer);
+    var var_errors = sse_decode_list_String(deserializer);
+    return DevImportReport(
+      imported: var_imported,
+      unchanged: var_unchanged,
+      errors: var_errors,
+    );
+  }
+
+  @protected
+  DeviceAlbum sse_decode_device_album(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_album_id(deserializer);
+    var var_trackCount = sse_decode_u_32(deserializer);
+    var var_artworkId = sse_decode_opt_String(deserializer);
+    return DeviceAlbum(
+      id: var_id,
+      trackCount: var_trackCount,
+      artworkId: var_artworkId,
+    );
+  }
+
+  @protected
+  DeviceArtist sse_decode_device_artist(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_name = sse_decode_String(deserializer);
+    var var_trackCount = sse_decode_u_32(deserializer);
+    return DeviceArtist(name: var_name, trackCount: var_trackCount);
+  }
+
+  @protected
+  DevicePlaylist sse_decode_device_playlist(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_kind = sse_decode_String(deserializer);
+    var var_parentId = sse_decode_opt_String(deserializer);
+    var var_trackCount = sse_decode_u_32(deserializer);
+    return DevicePlaylist(
+      id: var_id,
+      name: var_name,
+      kind: var_kind,
+      parentId: var_parentId,
+      trackCount: var_trackCount,
+    );
+  }
+
+  @protected
+  DeviceTrack sse_decode_device_track(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_title = sse_decode_opt_String(deserializer);
+    var var_artist = sse_decode_opt_String(deserializer);
+    var var_album = sse_decode_opt_String(deserializer);
+    var var_durationMs = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_artworkId = sse_decode_opt_String(deserializer);
+    var var_codec = sse_decode_opt_String(deserializer);
+    var var_sampleRate = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_bitDepth = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_bitrate = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_discNumber = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_trackNumber = sse_decode_opt_box_autoadd_u_32(deserializer);
+    return DeviceTrack(
+      id: var_id,
+      title: var_title,
+      artist: var_artist,
+      album: var_album,
+      durationMs: var_durationMs,
+      artworkId: var_artworkId,
+      codec: var_codec,
+      sampleRate: var_sampleRate,
+      bitDepth: var_bitDepth,
+      bitrate: var_bitrate,
+      discNumber: var_discNumber,
+      trackNumber: var_trackNumber,
+    );
+  }
+
+  @protected
+  double sse_decode_f_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getFloat32();
+  }
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt32();
+  }
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getPlatformInt64();
+  }
+
+  @protected
+  int sse_decode_i_8(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt8();
+  }
+
+  @protected
+  LibraryCounts sse_decode_library_counts(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_songs = sse_decode_u_32(deserializer);
+    var var_albums = sse_decode_u_32(deserializer);
+    var var_artists = sse_decode_u_32(deserializer);
+    var var_playlists = sse_decode_u_32(deserializer);
+    return LibraryCounts(
+      songs: var_songs,
+      albums: var_albums,
+      artists: var_artists,
+      playlists: var_playlists,
+    );
+  }
+
+  @protected
+  LibraryEvent sse_decode_library_event(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_timestampMs = sse_decode_i_64(deserializer);
+    var var_kind = sse_decode_library_event_kind(deserializer);
+    var var_payloadJson = sse_decode_String(deserializer);
+    return LibraryEvent(
+      id: var_id,
+      timestampMs: var_timestampMs,
+      kind: var_kind,
+      payloadJson: var_payloadJson,
+    );
+  }
+
+  @protected
+  LibraryEventKind sse_decode_library_event_kind(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return LibraryEventKind.values[inner];
+  }
+
+  @protected
+  LibraryPage sse_decode_library_page(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_offset = sse_decode_u_32(deserializer);
+    var var_limit = sse_decode_u_32(deserializer);
+    return LibraryPage(offset: var_offset, limit: var_limit);
+  }
+
+  @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <String>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<DeviceAlbum> sse_decode_list_device_album(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DeviceAlbum>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_device_album(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<DeviceArtist> sse_decode_list_device_artist(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DeviceArtist>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_device_artist(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<DevicePlaylist> sse_decode_list_device_playlist(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DevicePlaylist>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_device_playlist(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<DeviceTrack> sse_decode_list_device_track(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DeviceTrack>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_device_track(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<int> sse_decode_list_prim_i_8_loose(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getInt8List(len_);
+  }
+
+  @protected
+  Int8List sse_decode_list_prim_i_8_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getInt8List(len_);
+  }
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_i_32(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_i_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_u_32(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  PlaybackEvent sse_decode_playback_event(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_state = sse_decode_playback_state(deserializer);
+    var var_positionMs = sse_decode_u_64(deserializer);
+    var var_trackId = sse_decode_opt_String(deserializer);
+    var var_queueIndex = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_pass = sse_decode_u_64(deserializer);
+    var var_playedMs = sse_decode_u_64(deserializer);
+    var var_volumePercent = sse_decode_u_8(deserializer);
+    var var_ended = sse_decode_bool(deserializer);
+    var var_skipped = sse_decode_bool(deserializer);
+    var var_error = sse_decode_opt_String(deserializer);
+    return PlaybackEvent(
+      state: var_state,
+      positionMs: var_positionMs,
+      trackId: var_trackId,
+      queueIndex: var_queueIndex,
+      pass: var_pass,
+      playedMs: var_playedMs,
+      volumePercent: var_volumePercent,
+      ended: var_ended,
+      skipped: var_skipped,
+      error: var_error,
+    );
+  }
+
+  @protected
+  PlaybackRepeat sse_decode_playback_repeat(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return PlaybackRepeat.values[inner];
+  }
+
+  @protected
+  PlaybackShuffle sse_decode_playback_shuffle(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return PlaybackShuffle.values[inner];
+  }
+
+  @protected
+  PlaybackSoundCheck sse_decode_playback_sound_check(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return PlaybackSoundCheck.values[inner];
+  }
+
+  @protected
+  PlaybackState sse_decode_playback_state(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return PlaybackState.values[inner];
+  }
+
+  @protected
+  ThumbnailSize sse_decode_thumbnail_size(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ThumbnailSize.values[inner];
+  }
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint32();
+  }
+
+  @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getBigUint64();
   }
 
   @protected
@@ -217,21 +2384,372 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer) {
+  BigInt sse_decode_usize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getInt32();
+    return deserializer.buffer.getBigUint64();
   }
 
   @protected
-  bool sse_decode_bool(SseDeserializer deserializer) {
+  void sse_encode_AnyhowException(
+    AnyhowException self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getUint8() != 0;
+    sse_encode_String(self.message, serializer);
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+    DeviceLibrary self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as DeviceLibraryImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription(
+    PlayerEventSubscription self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as PlayerEventSubscriptionImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+    DeviceLibrary self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as DeviceLibraryImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription(
+    PlayerEventSubscription self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as PlayerEventSubscriptionImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+    DeviceLibrary self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as DeviceLibraryImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEventSubscription(
+    PlayerEventSubscription self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as PlayerEventSubscriptionImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void sse_encode_StreamSink_playback_event_Sse(
+    RustStreamSink<PlaybackEvent> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_playback_event,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
   }
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
+  }
+
+  @protected
+  void sse_encode_album_id(AlbumId self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.title, serializer);
+    sse_encode_opt_String(self.artist, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.year, serializer);
+    sse_encode_bool(self.compilation, serializer);
+  }
+
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_album_id(AlbumId self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_album_id(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_library_event(
+    LibraryEvent self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_library_event(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_library_page(
+    LibraryPage self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_library_page(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self, serializer);
+  }
+
+  @protected
+  void sse_encode_dev_import_report(
+    DevImportReport self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.imported, serializer);
+    sse_encode_u_32(self.unchanged, serializer);
+    sse_encode_list_String(self.errors, serializer);
+  }
+
+  @protected
+  void sse_encode_device_album(DeviceAlbum self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_album_id(self.id, serializer);
+    sse_encode_u_32(self.trackCount, serializer);
+    sse_encode_opt_String(self.artworkId, serializer);
+  }
+
+  @protected
+  void sse_encode_device_artist(DeviceArtist self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.name, serializer);
+    sse_encode_u_32(self.trackCount, serializer);
+  }
+
+  @protected
+  void sse_encode_device_playlist(
+    DevicePlaylist self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.kind, serializer);
+    sse_encode_opt_String(self.parentId, serializer);
+    sse_encode_u_32(self.trackCount, serializer);
+  }
+
+  @protected
+  void sse_encode_device_track(DeviceTrack self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_opt_String(self.title, serializer);
+    sse_encode_opt_String(self.artist, serializer);
+    sse_encode_opt_String(self.album, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.durationMs, serializer);
+    sse_encode_opt_String(self.artworkId, serializer);
+    sse_encode_opt_String(self.codec, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.sampleRate, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.bitDepth, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.bitrate, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.discNumber, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.trackNumber, serializer);
+  }
+
+  @protected
+  void sse_encode_f_32(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putFloat32(self);
+  }
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt32(self);
+  }
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putPlatformInt64(self);
+  }
+
+  @protected
+  void sse_encode_i_8(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt8(self);
+  }
+
+  @protected
+  void sse_encode_library_counts(LibraryCounts self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.songs, serializer);
+    sse_encode_u_32(self.albums, serializer);
+    sse_encode_u_32(self.artists, serializer);
+    sse_encode_u_32(self.playlists, serializer);
+  }
+
+  @protected
+  void sse_encode_library_event(LibraryEvent self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_i_64(self.timestampMs, serializer);
+    sse_encode_library_event_kind(self.kind, serializer);
+    sse_encode_String(self.payloadJson, serializer);
+  }
+
+  @protected
+  void sse_encode_library_event_kind(
+    LibraryEventKind self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_library_page(LibraryPage self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.offset, serializer);
+    sse_encode_u_32(self.limit, serializer);
+  }
+
+  @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_device_album(
+    List<DeviceAlbum> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_device_album(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_device_artist(
+    List<DeviceArtist> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_device_artist(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_device_playlist(
+    List<DevicePlaylist> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_device_playlist(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_device_track(
+    List<DeviceTrack> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_device_track(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_prim_i_8_loose(
+    List<int> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putInt8List(
+      self is Int8List ? self : Int8List.fromList(self),
+    );
+  }
+
+  @protected
+  void sse_encode_list_prim_i_8_strict(
+    Int8List self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putInt8List(self);
   }
 
   @protected
@@ -242,6 +2760,115 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putUint8List(self);
+  }
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_String(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_i_32(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_i_64(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_u_32(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_playback_event(PlaybackEvent self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_playback_state(self.state, serializer);
+    sse_encode_u_64(self.positionMs, serializer);
+    sse_encode_opt_String(self.trackId, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.queueIndex, serializer);
+    sse_encode_u_64(self.pass, serializer);
+    sse_encode_u_64(self.playedMs, serializer);
+    sse_encode_u_8(self.volumePercent, serializer);
+    sse_encode_bool(self.ended, serializer);
+    sse_encode_bool(self.skipped, serializer);
+    sse_encode_opt_String(self.error, serializer);
+  }
+
+  @protected
+  void sse_encode_playback_repeat(
+    PlaybackRepeat self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_playback_shuffle(
+    PlaybackShuffle self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_playback_sound_check(
+    PlaybackSoundCheck self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_playback_state(PlaybackState self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_thumbnail_size(ThumbnailSize self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint32(self);
+  }
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putBigUint64(self);
   }
 
   @protected
@@ -256,14 +2883,214 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_i_32(int self, SseSerializer serializer) {
+  void sse_encode_usize(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putInt32(self);
+    serializer.buffer.putBigUint64(self);
   }
+}
 
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putUint8(self ? 1 : 0);
-  }
+@sealed
+class DeviceLibraryImpl extends RustOpaque implements DeviceLibrary {
+  // Not to be used by end users
+  DeviceLibraryImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  DeviceLibraryImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_DeviceLibrary,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_DeviceLibrary,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_DeviceLibraryPtr,
+  );
+
+  /// Return one album's tracks in disc and track order.
+  Future<List<DeviceTrack>> albumTracks({required AlbumId id}) => RustLib
+      .instance
+      .api
+      .crateApiDeviceDeviceLibraryAlbumTracks(that: this, id: id);
+
+  /// Return album groups ordered by title, then artist and release.
+  Future<List<DeviceAlbum>> albums({required LibraryPage page}) => RustLib
+      .instance
+      .api
+      .crateApiDeviceDeviceLibraryAlbums(that: this, page: page);
+
+  /// Return each credited artist once, with their track count.
+  Future<List<DeviceArtist>> artists() =>
+      RustLib.instance.api.crateApiDeviceDeviceLibraryArtists(that: this);
+
+  /// Materialize an immutable thumbnail beside the device database, if present.
+  Future<String?> artworkPath({
+    required String id,
+    required ThumbnailSize size,
+  }) => RustLib.instance.api.crateApiDeviceDeviceLibraryArtworkPath(
+    that: this,
+    id: id,
+    size: size,
+  );
+
+  /// Close the database and stop the audio worker off the Dart isolate.
+  Future<void> close() =>
+      RustLib.instance.api.crateApiDeviceDeviceLibraryClose(that: this);
+
+  /// Import audio chosen by the debug build's native picker.
+  Future<DevImportReport> importDevFiles({required List<String> paths}) =>
+      RustLib.instance.api.crateApiDeviceDeviceLibraryImportDevFiles(
+        that: this,
+        paths: paths,
+      );
+
+  /// Count tracks, album groups, credited artists and playlists.
+  Future<LibraryCounts> libraryCounts() =>
+      RustLib.instance.api.crateApiDeviceDeviceLibraryLibraryCounts(that: this);
+
+  /// Replace the queue from library IDs and select the initial item, paused.
+  Future<void> loadQueue({
+    required List<String> trackIds,
+    required int startIndex,
+  }) => RustLib.instance.api.crateApiDeviceDeviceLibraryLoadQueue(
+    that: this,
+    trackIds: trackIds,
+    startIndex: startIndex,
+  );
+
+  /// Play the next queue item.
+  Future<void> next() =>
+      RustLib.instance.api.crateApiDeviceDeviceLibraryNext(that: this);
+
+  /// Pause the current track.
+  Future<void> pause() =>
+      RustLib.instance.api.crateApiDeviceDeviceLibraryPause(that: this);
+
+  /// Resume the current track.
+  Future<void> play() =>
+      RustLib.instance.api.crateApiDeviceDeviceLibraryPlay(that: this);
+
+  /// Play a click using the platform's UI audio channel.
+  Future<void> playClick() =>
+      RustLib.instance.api.crateApiDeviceDeviceLibraryPlayClick(that: this);
+
+  /// Return a playlist's tracks in position order, including repeated tracks.
+  Future<List<DeviceTrack>> playlistTracks({required String id}) => RustLib
+      .instance
+      .api
+      .crateApiDeviceDeviceLibraryPlaylistTracks(that: this, id: id);
+
+  /// Return playlists and folders in their stored order.
+  Future<List<DevicePlaylist>> playlists() =>
+      RustLib.instance.api.crateApiDeviceDeviceLibraryPlaylists(that: this);
+
+  /// Restart the track after four seconds or go back one queue item.
+  Future<void> prev() =>
+      RustLib.instance.api.crateApiDeviceDeviceLibraryPrev(that: this);
+
+  /// Append one event to the durable log for future sync.
+  Future<void> recordEvent({required LibraryEvent event}) => RustLib
+      .instance
+      .api
+      .crateApiDeviceDeviceLibraryRecordEvent(that: this, event: event);
+
+  /// Seek within the current track, in milliseconds.
+  Future<void> seek({required BigInt positionMs}) => RustLib.instance.api
+      .crateApiDeviceDeviceLibrarySeek(that: this, positionMs: positionMs);
+
+  /// Apply the five EQ gains in decibels, with the lowest band first.
+  Future<void> setEq({required List<int> gains}) => RustLib.instance.api
+      .crateApiDeviceDeviceLibrarySetEq(that: this, gains: gains);
+
+  /// Set gapless playback, Sound Check and the linear volume cap.
+  Future<void> setFlags({
+    required bool gapless,
+    required PlaybackSoundCheck soundCheck,
+    required double volumeLimit,
+  }) => RustLib.instance.api.crateApiDeviceDeviceLibrarySetFlags(
+    that: this,
+    gapless: gapless,
+    soundCheck: soundCheck,
+    volumeLimit: volumeLimit,
+  );
+
+  /// Set the active repeat mode.
+  Future<void> setRepeat({required PlaybackRepeat mode}) => RustLib.instance.api
+      .crateApiDeviceDeviceLibrarySetRepeat(that: this, mode: mode);
+
+  /// Set the active shuffle mode.
+  Future<void> setShuffle({required PlaybackShuffle mode}) => RustLib
+      .instance
+      .api
+      .crateApiDeviceDeviceLibrarySetShuffle(that: this, mode: mode);
+
+  /// Set the linear volume from 0 to 1.
+  Future<void> setVolume({required double volume}) => RustLib.instance.api
+      .crateApiDeviceDeviceLibrarySetVolume(that: this, volume: volume);
+
+  /// Read a JSON setting. Missing keys return `None`; JSON null returns `"null"`.
+  Future<String?> settingsGet({required String key}) => RustLib.instance.api
+      .crateApiDeviceDeviceLibrarySettingsGet(that: this, key: key);
+
+  /// Replace one JSON setting.
+  Future<void> settingsSet({required String key, required String valueJson}) =>
+      RustLib.instance.api.crateApiDeviceDeviceLibrarySettingsSet(
+        that: this,
+        key: key,
+        valueJson: valueJson,
+      );
+
+  /// Return a page of songs using the synced sort keys when present.
+  Future<List<DeviceTrack>> songs({required LibraryPage page}) => RustLib
+      .instance
+      .api
+      .crateApiDeviceDeviceLibrarySongs(that: this, page: page);
+
+  /// Subscribe to transport changes, including an initial snapshot.
+  Future<PlayerEventSubscription> subscribePlayer() => RustLib.instance.api
+      .crateApiDeviceDeviceLibrarySubscribePlayer(that: this);
+
+  /// Toggle between playback and pause.
+  Future<void> toggle() =>
+      RustLib.instance.api.crateApiDeviceDeviceLibraryToggle(that: this);
+
+  /// Read tracks in the requested order, retaining repeats and skipping removed IDs.
+  Future<List<DeviceTrack>> tracksByIds({required List<String> ids}) => RustLib
+      .instance
+      .api
+      .crateApiDeviceDeviceLibraryTracksByIds(that: this, ids: ids);
+}
+
+@sealed
+class PlayerEventSubscriptionImpl extends RustOpaque
+    implements PlayerEventSubscription {
+  // Not to be used by end users
+  PlayerEventSubscriptionImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  PlayerEventSubscriptionImpl.frbInternalSseDecode(
+    BigInt ptr,
+    int externalSizeOnNative,
+  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount: RustLib
+        .instance
+        .api
+        .rust_arc_increment_strong_count_PlayerEventSubscription,
+    rustArcDecrementStrongCount: RustLib
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_PlayerEventSubscription,
+    rustArcDecrementStrongCountPtr: RustLib
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_PlayerEventSubscriptionPtr,
+  );
+
+  /// Forward snapshots on a separate thread until the subscription is disposed.
+  Future<Stream<PlaybackEvent>> stream() => RustLib.instance.api
+      .crateApiPlaybackPlayerEventSubscriptionStream(that: this);
 }

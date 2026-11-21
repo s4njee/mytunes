@@ -2996,8 +2996,17 @@ dependencies = [
 name = "mt_ffi"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
+ "blake3",
  "flutter_rust_bridge",
+ "jni 0.22.4",
+ "mt-audio",
+ "mt-db",
  "mt-types",
+ "ndk-context",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -4282,6 +4291,14 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "seed-device"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "mt-db",
+]
 
 [[package]]
 name = "selectors"

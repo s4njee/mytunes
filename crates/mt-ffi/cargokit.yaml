@@ -1,0 +1,3 @@
+cargo:
+  debug:
+    extra_flags: ["--features", "dev-import"]

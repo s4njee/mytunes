@@ -260,12 +260,13 @@ Notation: **As a** *role*, **I want** *capability*, **so that** *benefit*. ACs a
   - AC4: Workflows triggered by fork PRs have no access to secrets. Release signing secrets are used only on tag pushes from `main` (E15).
   - _Status 2026-11-18: `.github/workflows/ci.yml` written (plus a Linux E2E smoke test via tauri-driver). Every step passes locally on Linux. Not yet run on GitHub, so it stays unticked until the first green run, including the macOS, Windows and iOS jobs._
   - _Status 2026-11-18 (later): the E0 work is now committed locally on `main` (first commit `0985e93`, "E0: baseline"); the repo had no commits before that. Still to do: add the GitHub remote, push `main`, and get the first green CI run._
-- [ ] **E0.S3 Design tokens & reference screens.** As a developer, I want tokens in one file with codegen, and committed reference screenshots, so that both apps use exact design values.
+- [x] **E0.S3 Design tokens & reference screens.** As a developer, I want tokens in one file with codegen, and committed reference screenshots, so that both apps use exact design values.
   - AC1: `design/tokens.json` contains every colour, type role, spacing, radius and shadow from `design/handoff/README.md` §Design Tokens, for `dark` and `light`, named after the handoff's token names.
   - AC2: `tools/gen_tokens` produces Dart and CSS outputs. CI fails if the generated files are stale 🧪.
   - AC3: A unit test asserts sample values (`amber == #F0A23C`, `light.accent == #2F6DB5`, `wheel diameter == 252`) 🧪.
   - AC4: PNG screenshots of every 1a and 2a screen (Menu, Albums, Now Playing, Queue, Equalizer) at 402×874 @1× and @3× are captured from the prototype into `design/handoff/screens/`. `.gitignore` excludes `design/handoff/support.js` and `design/handoff/ios-frame.jsx`.
   - _Status 2026-11-18: AC1–AC3 done (the Dart output carries `// dart format off` so formatters can't make it stale). AC4 is pending: the screenshots still need capturing from the prototype. The gitignore part is done._
+  - _Status 2026-11-21. All twenty original 1a and 2a PNG exports are in `design/handoff/screens/`, with validated 1× and 3× dimensions._
 - [x] **E0.S4 Test fixtures.** As a developer, I want generated audio fixtures so that tests never depend on copyrighted music.
   - AC1: `tools/gen_fixtures` (using sox/ffmpeg if present, otherwise pure-Rust WAV + FLAC encoding) generates sine/chirp files in MP3, M4A (AAC), ALAC, FLAC 16/44.1 and 24/96, WAV, Ogg, with varied tags (including Unicode, missing fields, embedded art, compilation flag).
   - AC2: It includes a **gapless pair**: one continuous sine split into two files at a non-zero-crossing point, for the gapless test.
@@ -378,7 +379,7 @@ _2026-11-19: The owner started M1 while the platform checks remain open. Remaini
 
 ### M2 — Desktop MVP (Tauri 2 + SolidJS 2.0)
 
-_Implementation complete as of 2026-11-20. The Linux desktop works through import, browsing, search, playback, media controls, and library statistics. A Linux x64 AppImage is available locally. The playback build passed on Apple Silicon and the final Windows x64 cross-build passed. Native macOS and Windows verification and hosted CI remain open._
+_Implementation complete as of 2026-11-20. The Linux desktop works through import, browsing, search, playback, media controls, and library statistics. A Linux x64 AppImage is available locally. Native macOS and Windows verification remains open. [Hosted CI passed](https://github.com/s4njee/mytunes/actions/runs/44746703221)._
 
 > Frontend rules: no domain logic in TS. The frontend renders state and calls typed commands. Sorting, filtering, counting and every file operation happen in Rust (`mt-app`). Components use only `tokens.css` variables for colour, type, spacing and radius.
 
@@ -459,17 +460,24 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC3: Fonts: IBM Plex Sans 400/500/600/700, JetBrains Mono 400/500 bundled. The OFL licence is included in the app's licences page.
   - AC4: Portrait-locked for v1 (landscape is a design gap).
   - AC5: Golden tests for each screen in both themes, at 402×874 logical px, against `design/handoff/screens/`. Tolerance ≤ 1.5% pixel diff, excluding album-art placeholders 🧪.
+  - _Status 2026-11-20: The shared portrait shell, system appearance, native status bar, bundled fonts, and font licences are implemented. Both themes and the portrait lock passed on an Android emulator. Physical device verification and the five-screen golden comparisons remain open. The reference PNGs are absent from the checkout. See ADR-0027._
+  - _Verification 2026-11-21. The reference PNGs and a matching Flutter capture fixture cover all five screens in both themes. Exact matching reports 9.2%–25.9% changed pixels after artwork masking. A Pixelmatch diagnostic gives 0.49%–1.43% with its standard colour and anti-aliasing settings. Sign-off and physical device verification remain open._
+  - _Verification after the transport marks and shadow changes. The recaptured Flutter screens have a lower mean RGB error on all ten comparisons. Standard Pixelmatch measures 0.39%–1.30%, and exact matching measures 6.75%–30.71%. Q7 and physical phone verification remain open._
 - [ ] **E5.S2 Rust bridge facade.** As the Flutter app, I want a narrow, async Rust API so that UI code stays simple.
   - AC1: `mt-ffi` exposes: `open_device_db(path)`, `library_counts()`, `albums(page)`, `album_tracks(id)`, `artists()`, `songs(page)`, `playlists()`, `playlist_tracks(id)`, `artwork_path(id, size)`, the player API (§3.4), `player_events() -> Stream`, `settings_get/set`, `record_event(...)`, and the sync client API (M4).
   - AC2: All calls are async and never block the UI isolate. A test calls each from Dart 🧪.
   - AC3: Rust panics are caught at the FFI boundary and surfaced as Dart exceptions with a message.
+  - _Status 2026-11-20: The local library, artwork, event log, settings, and playback bridge passed Dart integration tests on Android. An injected panic reached Dart as an exception with the original message. Hosted CI and native iOS verification remain open. Sync APIs are scheduled for M4. See ADR-0028._
+  - _Bridge verification 2026-11-21. The Dart suite looks up a saved queue in the requested order, including repeated IDs and an ID that no longer exists. The seeded playback test waits for native audio delivery past its seek point. CI runs the same suite on Android Emulator and iPhone Simulator._
 - [ ] **E5.S3 Dev library seeding.** As a developer, I want to populate the phone without sync so that I can build M3 before M4.
   - AC1: Debug builds only: a hidden "Dev import" action (long-press the header eyebrow for 3 s) opens the OS file picker, copies the chosen files into the app sandbox and builds the device DB using `mt-meta` (the only place the phone reads tags; compiled out of release builds).
   - AC2: Alternatively `tools/seed_device` writes a device DB plus files that can be pushed with `adb push` or Xcode's container download.
+  - _Status 2026-11-20: Host seeding and the three-second debug import both populated an Android emulator library. Dart integration tests played and sought through a copied track. The Android release build preserved the library and disabled the import action. Hosted CI and native iOS verification remain open. See ADR-0029._
 - [ ] **E5.S4 Navigation stack.** As a user, I want MENU to go back like an iPod so that navigation is muscle memory.
   - AC1: A screen stack (not go_router routes). Screen change is a horizontal slide: forward slides left, back slides right, 220 ms ease-out.
   - AC2: **Per the handoff, MENU returns to the root Menu and resets selection to 0** for the v1 five-screen set. For the deeper tree in M5, MENU pops **one level**, and the selection of the parent is restored, as on a real iPod. Record the switch in an ADR when E10 lands.
   - AC3: The Android system back gesture equals MENU. On iOS, an edge-swipe back is disabled on wheel screens (the wheel is the navigation).
+  - _Status 2026-11-20: The app shell uses the screen stack and a 220 ms ease-out slide with a fixed wheel deck. Widget tests cover slide timing, root reset, and the iOS edge-swipe guard. MENU and Android system back passed on an Android emulator using test destinations. The E6 wheel and screens will expose these controls in the app. Native iOS, reference goldens, and hosted CI remain open._
 
 #### E6 Wheel screens (1a / 2a)
 - [ ] **E6.S1 Click wheel widget.** 🧪 As a user, I want a wheel that feels mechanical so that browsing is tactile and fun.
@@ -480,41 +488,58 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC5: Visual ring rotation follows the cumulative `wheelRotation`.
   - AC6: The hint text under the wheel is `DRAG RING TO BROWSE / SCRUB / SET GAIN` by context. It's `text-30` normally and accent-coloured while dragging.
   - AC7: The centre label reflects context: `SELECT` (Menu) · `PLAY` (Albums, Queue) · `PAUSE`/`PLAY` (Now Playing) · `BAND <hz>` (Equalizer). The `▶ ❙❙` label is static.
+  - _Status 2026-11-20: The wheel is in the app shell and MENU uses the screen stack. Flutter tests verify detent math, hit regions, rotation, labels, and haptic requests. Android emulator checks cover both themes and wheel input with test screens. The Menu rows and transport actions are covered by the following E6 stories. Native iOS haptic latency, reference goldens, and hosted CI remain open._
+  - _Verification 2026-11-21. A physical Samsung SM-X230 on Android 16 used a ring drag to select Albums and the centre button to open Albums and play the imported album. Android recorded the haptic requests. The tablet reports no vibration actuator, so tactile feedback still needs a phone._
 - [ ] **E6.S2 Display header & Menu screen.** As a user, I want the root menu so that I can reach everything.
   - AC1: The header row shows the accent eyebrow on the left and `text-40` metadata on the right (`N songs · M albums`) with the `rule` underline, per the handoff.
   - AC2: Menu rows: Now Playing · Albums (count) · Songs (count) · Queue (count) · Equalizer. 54 pt rows, dot + label + mono count. Selection styling differs by theme (dark: amber-14 tint, amber dot, white label, radius 10. Light: solid blue bar, white text, white dot, radius 5).
   - AC3: Step moves the selection, clamped (no wrap). Centre opens the destination. **Songs opens a full song list** (the prototype routes it to Queue. Treat the real Songs list as a reuse of the Queue row component, without the now-playing highlight).
-  - AC4: "Now Playing" is shown but disabled at `text-35` when nothing has ever been played (design gap: owner to confirm).
+  - AC4: "Now Playing" is shown but disabled at `text-35` when nothing has ever been played (owner confirmed, ADR-0030).
+  - _Status 2026-11-21: The seeded Android app showed live library and queue counts, clamped wheel selection, and both menu styles. Songs loaded a separate paged list and played the selected track. Playback enabled the first row in the same session. Native iOS, reference goldens, and hosted CI remain open._
 - [ ] **E6.S3 Albums grid.** As a user, I want to browse album art so that I can pick music visually.
   - AC1: 2-column grid, 14 pt gap, square tiles at radius 6. Real artwork (600 px thumb) or a placeholder colour tile from the theme's placeholder palette indexed by `album_index % 6`, with the uppercase mono caption. Titles and artists below.
   - AC2: The selected tile has a 2 pt accent ring and an accent title. The grid auto-scrolls to keep the selection visible (scroll animation ≤ 120 ms).
   - AC3: Centre plays the album from track 1 (queue = album tracks in disc/track order) and goes to Now Playing.
   - AC4: 500 albums scroll smoothly: artwork decode off the main isolate, cached via `ResizeImage` at 2× tile size.
+  - _Status 2026-11-21. Both Android themes displayed embedded cover art and the fallback tile. PLAY started the first album track and loaded the ordered queue. A profile build scrolled through 500 albums on the Android emulator. Across 761 frames, p95 build and raster times were 1.19 ms and 1.16 ms. Native iOS, reference goldens, and hosted CI remain open._
 - [ ] **E6.S4 Now Playing.** As a listener, I want the Now Playing screen so that I can see and control what's playing.
   - AC1: Layout per handoff: 140×140 art (radius 8) + title/artist + format badge (`FLAC · 24/96`, `AAC · 256`, `MP3 · 320`, `ALAC · 16/44`), progress track 3 pt with elapsed / `-remaining` in mono, VOL label + 18 bars (5/7/9 px alternating).
   - AC2: Wheel step = seek ±4 s, clamped. While scrubbing, the audio seeks on release or every 150 ms, whichever comes first (avoid seek storms). Centre toggles play/pause. ◀◀/▶▶ per the §3.4 rules.
   - AC3: Volume is shown as 18 bars reflecting app volume (default 0.62 per handoff). v1 has no wheel mode for volume. **Backlog:** a second centre press switches the wheel to volume mode, as on the real iPod (needs design).
   - AC4: Position updates at 4 Hz from player events. On track end, it advances to the next queue item.
+  - _Status 2026-11-21. Both Android themes showed cover art, format metadata, seek position, and the 62% volume default. The seeded Android player passed pause, wrap, restart, wheel seek, and automatic track advance. Flutter tests cover seek coalescing and release. Native iOS, reference goldens, and hosted CI remain open._
 - [ ] **E6.S5 Queue.** As a listener, I want to see what's up next so that I can jump around.
   - AC1: 48 pt rows: zero-padded mono track number, title + artist, duration (`m:ss`). The currently playing row's number and title are accent-coloured, independent of selection (light theme: white when selected, blue when playing and unselected).
   - AC2: On entry, the selection starts on the currently playing row. Centre plays the selected track and goes to Now Playing.
+  - _Status 2026-11-21. The Android app opened Queue on the current track and highlighted it independently of wheel selection in both themes. PLAY started the selected entry, kept the queue order, and opened Now Playing. Native iOS, reference goldens, and hosted CI remain open._
 - [ ] **E6.S6 Equalizer.** As a listener, I want to shape the sound with the wheel so that the EQ is fun to use.
   - AC1: 5 bands, a 190 pt band row, centre-anchored bars `height = |gain|/6 × 50%`, Hz labels and signed gains per handoff. The active band is the accent colour, others `accent-42`/`accent-half`.
   - AC2: Wheel step = ±1 dB on the active band, clamped ±6. Centre = next band (wrap). Changes are applied to `mt-audio` live (smoothed).
-  - AC3: Status rows: Gapless playback (ON) · Volume limit (OFF) · Shuffle album order (ON) defaults. **Design gap:** the wheel can't reach these rows in the handoff. v1 makes them reachable by stepping past band 5 (selection moves into the rows, and centre toggles). Confirm with the owner 🎨 design-gate.
+  - AC3: Status rows: Gapless playback (ON) · Volume limit (OFF) · Shuffle album order (ON) defaults. After band 5, centre enters the settings. The ring moves between rows and centre toggles the selected setting. A counterclockwise step from the first row returns to band 5 (owner confirmed, ADR-0031).
   - AC4: Default gains `[3, 1, -2, 4, 2]` (handoff). Persisted.
+  - _Status 2026-11-21. The owner-approved wheel controls, live DSP calls, three toggles, and SQLite settings are implemented. Flutter tests cover the limits and toggles. Both themes and a cold-launch gain restore passed on the Android emulator. Native iOS, reference goldens, and hosted CI remain open._
 - [ ] **E6.S7 Persistence & resume.** As a user, I want the app to resume where I left it so that it feels like a device, not an app.
   - AC1: Persist `trackIndex`/queue, position, volume, eqGains, settings and theme to `device.sqlite state` on every change (debounced 1 s) and on background 🧪.
   - AC2: Cold start restores the last screen (Menu if > 1 h since last use), queue and position, paused.
+  - _Status 2026-11-21. The app coalesces state writes over one second and flushes when it leaves the foreground. A seeded Android cold restart restored the last screen, ordered queue, selected track, eight-second position, volume, and paused state. Tests cover stale screens, legacy EQ settings, and ordered track lookup. Native iOS and hosted CI remain open._
 - [ ] **E6.S8 Background & lock screen.** As a listener, I want music to keep playing with the screen off so that it's a real player.
   - AC1: iOS: `UIBackgroundModes=audio`, AVAudioSession `.playback`. Android: audio_service foreground service with a media notification.
   - AC2: Lock screen and notification show title, artist, art and progress, with play/pause/next/prev/seek wired to Rust.
   - AC3: Interruptions (calls, Siri, alarms) pause and resume per OS policy. Headphone or Bluetooth disconnect **pauses**. Audio focus loss on Android ducks or pauses.
   - AC4: 1 h of locked playback drains < 6% battery on a reference device (informational; record numbers).
+  - _Status 2026-11-21. Android kept playing while the emulator display was off. System media controls paused, resumed, changed tracks, and sought to 12 seconds. The media session exposed cover art. An Android transient focus request paused playback and releasing focus resumed it. Physical lock-screen, route-loss, iOS interruption, and one-hour battery checks remain open._
+  - _Physical Android verification 2026-11-21. On Samsung SM-X230 with Android 16, the player advanced 600.1 seconds during a 600-second locked interval. Pause, play, next, and previous worked through the system media session with the display off. The Samsung lock screen displayed title and artist, and its pause and play buttons controlled the app. A Samsung Clock timer paused playback through transient audio focus and playback resumed when Clock released focus. The USB-connected run supplied no unplugged battery measurement. Physical route-loss and iOS checks remain open._
+  - _Bluetooth verification 2026-11-21. The same tablet streamed test audio to a physical A2DP receiver. Disconnect paused playback. The rebuilt player opened a fresh stream when Play was pressed and resumed the same queue item and position on the tablet speaker. A Rust regression test verifies position, listened time, and queue identity across an output sample-rate change. Wired headphone removal and iOS route loss remain open._
+  - _Physical Android Quick Settings verification. Samsung System UI displayed the seeded cover art, title, artist, and progress. Tapping about 25% of the seek bar moved the Rust player from 46.1 s to 255.0 s on a 17-minute track._
+  - _Physical Android expanded lock-screen verification. The Samsung lock screen showed cover art, title, artist, and progress. Seeking about 60% through the same track moved the Rust player to 620.2 s. Pause, play, next, and previous all worked directly from the expanded media card while the tablet remained locked._
 - [ ] **E6.S9 Accessibility baseline.** As a VoiceOver/TalkBack user, I want to reach every item without the wheel so that the app is usable for me.
   - AC1: Each list screen exposes a semantic list. Swipe navigation moves the selection. Double-tap activates. The wheel's buttons are labelled buttons ("Menu", "Previous", "Next", "Play/Pause", "Select") 🧪 (semantics tests).
   - AC2: Selection is announced ("Albums, 6, selected, 2 of 5").
   - AC3: Hit targets ≥ 44 pt. Contrast pairs from the handoff are respected (no meaningful text at ≤ .35 alpha).
+  - _Status 2026-11-21. Screen readers can focus and activate library, album, song, and queue items. Playback position and EQ bands expose adjustable actions. Flutter tests check selection, activation, and hit sizes. Android native accessibility actions selected and played an album with TalkBack active. Physical VoiceOver and TalkBack reviews remain open. See ADR-0032._
+  - _Physical Android TalkBack verification. On the Samsung tablet, a right swipe moved focus from Now Playing to Albums and a double-tap opened the seeded album grid. VoiceOver and Android phone verification remain open._
+
+The M3 implementation branch passed all nine [hosted CI jobs](https://github.com/s4njee/mytunes/actions/runs/44889817555) at commit `64b86c2`, including Android emulator integration and the unsigned iOS build.
 
 **M3 exit:** on a physical iPhone and Android phone, with a dev-seeded library, all five screens in both themes pass golden tests. Background playback works. The owner does a "feel review" of the wheel and signs it off.
 
@@ -698,9 +723,11 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
 | R8 | Webview engine differences (WebKit vs Chromium) | CSS bugs on one OS | E2E on Linux and Windows. Manual macOS check per release. Conservative CSS. |
 | Q1 | Default theme: follow system (handoff) or always light 2a? | — | **Default: follow system.** Owner to confirm. |
 | Q2 | Is "Songs" a full song list (plan) or Queue (prototype)? | — | Plan assumes a full list. |
-| Q3 | How should the wheel reach the EQ status rows? | — | E6.S6 AC3 proposal. Owner to confirm. |
+| Q3 | ~~How should the wheel reach the EQ status rows?~~ | — | Owner approved pressing centre after band 5. See ADR-0031. |
 | Q4 | Desktop platforms priority order? | — | Assumed Linux → macOS → Windows. |
 | Q5 | ~~Project licence?~~ **Decided: `MIT OR Apache-2.0`** (owner, 2026-11-18). | — | Record in ADR-0006. Dependencies must be permissive or weak-copyleft (MPL-2.0 is fine, e.g. symphonia). Strong copyleft (GPL, AGPL) is not allowed. |
+| Q6 | ~~Where can we obtain the original 1a and 2a viewport PNGs?~~ | E0.S3 reference delivery and E5.S1 visual sign-off | The original runtime was available in the earlier checkout. The twenty viewport exports are committed in `design/handoff/screens/`. See [the comparison instructions](design/handoff/README.md#mobile-screenshot-comparisons). |
+| Q7 | Should the 1.5% limit use exact pixel matching or standard Pixelmatch handling for colour and anti-aliasing? | E5.S1 golden sign-off across browser and Flutter renderers | Owner to confirm the comparison method. The current automated comparison uses exact pixels. |
 
 ---
 

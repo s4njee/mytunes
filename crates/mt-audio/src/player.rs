@@ -358,6 +358,7 @@ struct Transport<T> {
     subscribers: Vec<Sender<PlayerEvent>>,
     next_position: Instant,
     last_delivery: (u64, Instant),
+    output_needs_reopen: bool,
 }
 
 fn start_transport(click: Option<ClickRequest>) -> Result<Transport<DeviceOutput>, PlayerError> {
@@ -392,6 +393,7 @@ impl<T: PlaybackOutput> Transport<T> {
             subscribers: Vec::new(),
             next_position: Instant::now(),
             last_delivery: (0, Instant::now()),
+            output_needs_reopen: false,
         })
     }
 
@@ -418,6 +420,9 @@ impl<T: PlaybackOutput> Transport<T> {
                 Err(RecvTimeoutError::Disconnected) => break,
             }
             if let Err(error) = self.tick(Instant::now()) {
+                if matches!(error, PlayerError::Output(OutputError::Stalled)) {
+                    self.output_needs_reopen = true;
+                }
                 self.output.set_playing(false);
                 self.state = PlayerState::Error;
                 self.emit(false, Some(error.to_string()));
@@ -427,6 +432,21 @@ impl<T: PlaybackOutput> Transport<T> {
 
     fn command(&mut self, command: Command) -> Result<(), PlayerError> {
         self.update_position();
+        let needs_stream = match &command {
+            Command::Toggle => self.state != PlayerState::Playing,
+            Command::Load(..)
+            | Command::Play
+            | Command::Seek(_)
+            | Command::Next
+            | Command::Prev
+            | Command::Flags(_)
+            | Command::Shuffle(_)
+            | Command::Repeat(_) => true,
+            _ => false,
+        };
+        if needs_stream && (self.output_needs_reopen || self.output.failed()) {
+            self.reopen_output()?;
+        }
         match command {
             Command::Load(items, index) => self.load(items, index),
             Command::Play => self.play(),
@@ -493,6 +513,10 @@ impl<T: PlaybackOutput> Transport<T> {
         let item = self.selected()?;
         if matches!(self.state, PlayerState::Ended | PlayerState::Error) {
             self.move_to(item, 0, false)?;
+        } else if self.source.is_none() {
+            let position = self.position_ms;
+            let source = self.prepare(&self.order, item, position)?;
+            self.install(source, item, position, PlayerState::Paused, true)?;
         }
         if self.state != PlayerState::Playing {
             self.fill()?;
@@ -647,12 +671,37 @@ impl<T: PlaybackOutput> Transport<T> {
     }
 
     fn clear(&mut self) -> Result<(), PlayerError> {
-        self.submitted = self.output.flush()?;
+        self.submitted = self.output.flush().inspect_err(|error| {
+            if matches!(error, OutputError::Stalled) {
+                self.output_needs_reopen = true;
+            }
+        })?;
         self.markers.clear();
         self.samples.clear();
         self.sample_offset = 0;
         self.next_marker = None;
         self.source = None;
+        Ok(())
+    }
+
+    fn reopen_output(&mut self) -> Result<(), PlayerError> {
+        self.output_needs_reopen = true;
+        // A failed stream can outlive a route change. Rebuild from the heard
+        // position and let the user's next transport command choose playback.
+        self.pause();
+        let heard = self.played_ms();
+        self.output.reopen()?;
+        self.dsp = Dsp::new(self.output.spec(), self.settings, Default::default())?;
+        self.clear()?;
+        if let Some(current) = &mut self.current {
+            current.frame = self.submitted;
+            current.position_ms = self.position_ms;
+            self.heard_before_seek_ms = heard;
+            if self.state == PlayerState::Error {
+                self.state = PlayerState::Paused;
+            }
+        }
+        self.output_needs_reopen = false;
         Ok(())
     }
 
@@ -900,6 +949,8 @@ mod tests {
         queued: usize,
         delivered: u64,
         playing: Cell<bool>,
+        failed: bool,
+        reopened: bool,
     }
 
     impl TestOutput {
@@ -915,7 +966,7 @@ mod tests {
     impl PlaybackOutput for TestOutput {
         fn spec(&self) -> AudioSpec {
             AudioSpec {
-                sample_rate: 48_000,
+                sample_rate: if self.reopened { 44_100 } else { 48_000 },
                 channels: 1,
             }
         }
@@ -935,7 +986,7 @@ mod tests {
         }
 
         fn failed(&self) -> bool {
-            false
+            self.failed
         }
 
         fn set_playing(&self, playing: bool) {
@@ -943,9 +994,20 @@ mod tests {
         }
 
         fn flush(&mut self) -> Result<u64, OutputError> {
+            if self.failed {
+                return Err(OutputError::Stalled);
+            }
             self.queued = 0;
             self.set_playing(false);
             Ok(self.delivered)
+        }
+
+        fn reopen(&mut self) -> Result<(), OutputError> {
+            *self = Self {
+                reopened: true,
+                ..Self::default()
+            };
+            Ok(())
         }
     }
 
@@ -998,6 +1060,38 @@ mod tests {
     fn current(player: &Transport<TestOutput>) -> (&str, u64) {
         let item = player.selected().expect("loaded test track");
         (&player.order.items[item].id.0, player.position_ms)
+    }
+
+    #[test]
+    fn play_after_route_loss_reopens_output_and_preserves_progress() {
+        let directory = tempfile::tempdir().expect("create playback fixture directory");
+        let mut player = Transport::new(TestOutput::default()).expect("open test player");
+        player
+            .command(Command::Load(tracks(directory.path(), 48_000), 1))
+            .expect("load queue");
+        player.command(Command::Play).expect("start second track");
+        player.output.consume(4_800);
+        player.output.failed = true;
+        player
+            .command(Command::Pause)
+            .expect("pause when route is lost");
+        let paused = player.event(false, None);
+        assert_eq!(paused.state, PlayerState::Paused);
+        assert_eq!(paused.position_ms, 100);
+        assert!(!player.output.reopened);
+
+        player
+            .command(Command::Play)
+            .expect("resume on the new route");
+        assert!(player.output.reopened);
+        assert_eq!(player.state, PlayerState::Playing);
+        assert_eq!(current(&player), ("two", 100));
+        player.output.consume(4_410);
+        player.update_position();
+        let resumed = player.event(false, None);
+        assert_eq!(resumed.position_ms, 200);
+        assert_eq!(resumed.played_ms, 200);
+        assert_eq!(resumed.pass, paused.pass);
     }
 
     #[test]

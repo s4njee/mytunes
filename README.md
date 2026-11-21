@@ -72,7 +72,28 @@ flutter pub get
 flutter run
 ```
 
-Run the Rust-backed integration test on a device or emulator with `flutter test integration_test`.
+Run the Rust-backed integration tests on a device or emulator with `flutter test integration_test`.
+
+To seed a **debug** build before sync is available, hold **Library** for three
+seconds and select audio files in the system picker. The library count updates
+when the copy finishes. You can also prepare the database and media together
+from the repository root:
+
+```bash
+cargo run -p seed-device -- /tmp/mytunes-device /path/to/music
+```
+
+On Android, install the debug APK and transfer the pair before the first launch:
+
+```bash
+adb shell 'run-as io.github.s4njee.mytunes_pod sh -c "test ! -e files/device.sqlite && mkdir -p files"' &&
+  tar -C /tmp/mytunes-device -cf - device.sqlite music |
+    adb exec-in run-as io.github.s4njee.mytunes_pod tar -xf - -C files
+```
+
+On iOS, use Xcode's Download Container and Replace Container to place both under
+`AppData/Library/Application Support/` in a fresh debug sandbox. The in-app
+picker adds tracks to an existing library.
 
 After changing anything in `crates/mt-ffi/src/api/`, regenerate the Dart bindings (needs `cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked`):
 

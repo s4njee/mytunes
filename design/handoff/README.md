@@ -292,3 +292,18 @@ None shipped. Everything is CSS — no images, no icon files.
 | `support.js` | Runtime for the design tool's template format. Reference only — do not port. |
 
 Reading the source: `iPod Player.dc.html` holds markup for all three directions plus a logic class at the bottom carrying state, the wheel maths, and the derived values (colours and geometry per row) that the markup consumes.
+
+## Mobile screenshot comparisons
+
+The `screens/` PNGs were exported from 1a (dark) and 2a (light) in `iPod Player.dc.html`. The capture uses the original 402×874 viewport with the mock OS chrome hidden. Now Playing uses the prototype's initial playing state at 1:26. The comparison reads the 1× files, named `{dark,light}-{menu,albums,now-playing,queue,equalizer}.png`. The matching 3× exports use the `@3x.png` suffix.
+
+The artwork bounds in `screens/artwork.json` come from the prototype's visible placeholders. Each screenshot stem has an array of `[left, top, right, bottom]` rectangles in logical pixels, with the right and bottom edges excluded.
+
+Run both commands from `apps/mobile` to render and compare all ten states.
+
+```sh
+MYTUNES_RENDER_HANDOFF="$PWD/build/handoff-captures" flutter test test/handoff_capture_test.dart
+MYTUNES_HANDOFF_CAPTURES="$PWD/build/handoff-captures" flutter test test/handoff_screenshots_test.dart
+```
+
+For a device capture, use the same filenames and match the fixture's library and player state. The comparison accepts an integer pixel ratio and scales to 402×874. Use viewport captures with the device chrome hidden. The report flags missing images, invalid dimensions, and comparisons over the 1.5% threshold. Ordinary `flutter test` runs exercise the renderer and comparator. Setting a capture directory enables the screenshot comparisons.

@@ -1,5 +1,5 @@
 package io.github.s4njee.mytunes_pod
 
-import io.flutter.embedding.android.FlutterActivity
+import com.ryanheise.audioservice.AudioServiceActivity
 
-class MainActivity : FlutterActivity()
+class MainActivity : AudioServiceActivity()

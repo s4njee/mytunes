@@ -7,6 +7,8 @@ mod desktop;
 pub mod device;
 mod import;
 pub mod queries;
+#[cfg(feature = "device-seeding")]
+pub mod seed;
 mod tag_edit;
 
 pub use artwork::{ArtworkSize, artwork_thumbnail};

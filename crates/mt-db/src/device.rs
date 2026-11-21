@@ -23,7 +23,7 @@ pub const DEVICE_SCHEMA_VERSION: u32 = DEVICE_SCHEMA.version();
 /// A fresh database is marked as a device database. Existing desktop and
 /// unrelated database files are rejected.
 pub fn open_device(path: impl AsRef<Path>) -> Result<Connection, DbError> {
-    open_database(path.as_ref(), &DEVICE_SCHEMA, |_| Ok(()))
+    open_database(path.as_ref(), &DEVICE_SCHEMA, crate::collation::register)
 }
 
 /// An error reading or writing the device event log or state.
