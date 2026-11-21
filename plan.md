@@ -460,6 +460,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC4: Portrait-locked for v1 (landscape is a design gap).
   - AC5: Golden tests for each screen in both themes, at 402×874 logical px, against `design/handoff/screens/`. Tolerance ≤ 1.5% pixel diff, excluding album-art placeholders 🧪.
   - _Status 2026-11-20: The shared portrait shell, system appearance, native status bar, bundled fonts, and font licences are implemented. Both themes and the portrait lock passed on an Android emulator. Physical device verification and the five-screen golden comparisons remain open. The reference PNGs are absent from the checkout. See ADR-0027._
+  - _Verification 2026-11-21. Android emulator captures cover the five screens in both themes. The screenshot comparison test is in place. Actual comparisons await the original PNGs in Q6. Physical device verification remains open._
 - [ ] **E5.S2 Rust bridge facade.** As the Flutter app, I want a narrow, async Rust API so that UI code stays simple.
   - AC1: `mt-ffi` exposes: `open_device_db(path)`, `library_counts()`, `albums(page)`, `album_tracks(id)`, `artists()`, `songs(page)`, `playlists()`, `playlist_tracks(id)`, `artwork_path(id, size)`, the player API (§3.4), `player_events() -> Stream`, `settings_get/set`, `record_event(...)`, and the sync client API (M4).
   - AC2: All calls are async and never block the UI isolate. A test calls each from Dart 🧪.
@@ -528,6 +529,8 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC2: Selection is announced ("Albums, 6, selected, 2 of 5").
   - AC3: Hit targets ≥ 44 pt. Contrast pairs from the handoff are respected (no meaningful text at ≤ .35 alpha).
   - _Status 2026-11-21. Screen readers can focus and activate library, album, song, and queue items. Playback position and EQ bands expose adjustable actions. Flutter tests check selection, activation, and hit sizes. Android native accessibility actions selected and played an album with TalkBack active. Physical VoiceOver and TalkBack reviews remain open. See ADR-0032._
+
+The complete M3 implementation branch passed all nine [hosted CI jobs](https://github.com/s4njee/mytunes/actions/runs/44888061693) at commit `02f24c0`, including Android emulator integration and the unsigned iOS build.
 
 **M3 exit:** on a physical iPhone and Android phone, with a dev-seeded library, all five screens in both themes pass golden tests. Background playback works. The owner does a "feel review" of the wheel and signs it off.
 
@@ -714,6 +717,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
 | Q3 | ~~How should the wheel reach the EQ status rows?~~ | — | Owner approved pressing centre after band 5. See ADR-0031. |
 | Q4 | Desktop platforms priority order? | — | Assumed Linux → macOS → Windows. |
 | Q5 | ~~Project licence?~~ **Decided: `MIT OR Apache-2.0`** (owner, 2026-11-18). | — | Record in ADR-0006. Dependencies must be permissive or weak-copyleft (MPL-2.0 is fine, e.g. symphonia). Strong copyleft (GPL, AGPL) is not allowed. |
+| Q6 | Where can we obtain the original 1a and 2a viewport PNGs for Menu, Albums, Now Playing, Queue, and Equalizer? | E0.S3 reference delivery and E5.S1 visual sign-off | Owner to provide the exports or an accessible copy of the original prototype. See [the comparison instructions](design/handoff/README.md#mobile-screenshot-comparisons). |
 
 ---
 
