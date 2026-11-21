@@ -134,6 +134,7 @@ pub(crate) struct DeviceOutput {
     stream: cpal::Stream,
     producer: HeapProd<f32>,
     state: Arc<CallbackState>,
+    click: Option<ClickRequest>,
     pub(crate) spec: AudioSpec,
 }
 
@@ -145,6 +146,7 @@ pub(crate) trait PlaybackOutput {
     fn failed(&self) -> bool;
     fn set_playing(&self, playing: bool);
     fn flush(&mut self) -> Result<u64, OutputError>;
+    fn reopen(&mut self) -> Result<(), OutputError>;
 }
 
 impl DeviceOutput {
@@ -168,7 +170,7 @@ impl DeviceOutput {
         }
         let (producer, consumer) = ring(spec).split();
         let state = Arc::new(CallbackState::default());
-        let mixer = ClickMixer::new(spec.sample_rate, click);
+        let mixer = ClickMixer::new(spec.sample_rate, click.clone());
         let stream = match native_format {
             SampleFormat::F32 => {
                 build_stream::<f32>(&device, config, consumer, state.clone(), mixer)
@@ -208,6 +210,7 @@ impl DeviceOutput {
             stream,
             producer,
             state,
+            click,
             spec,
         })
     }
@@ -258,6 +261,13 @@ impl PlaybackOutput for DeviceOutput {
             thread::sleep(POLL_INTERVAL);
         }
         Ok(self.delivered())
+    }
+
+    fn reopen(&mut self) -> Result<(), OutputError> {
+        let next = Self::with_click(self.click.clone())?;
+        next.start()?;
+        *self = next;
+        Ok(())
     }
 }
 
