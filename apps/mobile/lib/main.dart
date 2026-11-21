@@ -16,6 +16,7 @@ import 'pod_shell.dart';
 import 'src/equalizer_settings.dart';
 import 'src/library_pages.dart';
 import 'src/player_events.dart';
+import 'src/pod_media_session.dart';
 import 'src/pod_session.dart';
 import 'src/rust/api/device.dart';
 import 'src/rust/api/playback.dart';
@@ -33,7 +34,8 @@ Future<void> main() async {
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   registerFontLicences();
   await RustLib.init();
-  runApp(MyTunesPod(library: _openLibrary()));
+  final mediaSession = await PodMediaSession.start();
+  runApp(MyTunesPod(library: _openLibrary(), mediaSession: mediaSession));
 }
 
 Future<DeviceLibrary> _openLibrary() async {
@@ -45,9 +47,10 @@ Future<DeviceLibrary> _openLibrary() async {
 
 /// MyTunes Pod follows the platform's light or dark appearance.
 class MyTunesPod extends StatefulWidget {
-  const MyTunesPod({super.key, this.library});
+  const MyTunesPod({super.key, this.library, this.mediaSession});
 
   final Future<DeviceLibrary>? library;
+  final PodMediaSession? mediaSession;
 
   @override
   State<MyTunesPod> createState() => _MyTunesPodState();
@@ -75,6 +78,7 @@ class _MyTunesPodState extends State<MyTunesPod> {
       },
       home: _LibraryHome(
         library: widget.library,
+        mediaSession: widget.mediaSession,
         onThemeRestored: (mode) {
           if (_theme != mode) setState(() => _theme = mode);
         },
@@ -84,9 +88,14 @@ class _MyTunesPodState extends State<MyTunesPod> {
 }
 
 class _LibraryHome extends StatefulWidget {
-  const _LibraryHome({required this.library, required this.onThemeRestored});
+  const _LibraryHome({
+    required this.library,
+    required this.mediaSession,
+    required this.onThemeRestored,
+  });
 
   final Future<DeviceLibrary>? library;
+  final PodMediaSession? mediaSession;
   final ValueChanged<ThemeMode> onThemeRestored;
 
   @override
@@ -137,6 +146,7 @@ class _LibraryHomeState extends State<_LibraryHome>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.mediaSession?.onCommand = _mediaCommand;
     if (widget.library != null) {
       _restoring = true;
       unawaited(_restoreSession());
@@ -376,7 +386,7 @@ class _LibraryHomeState extends State<_LibraryHome>
             _artPaletteIndex = album == null ? 0 : selection;
           }
         });
-        await library.play();
+        await _startPlaying(library);
         if (mounted) {
           setState(() {
             _hasPlayed = true;
@@ -393,6 +403,50 @@ class _LibraryHomeState extends State<_LibraryHome>
     } finally {
       _startingPlayback = false;
     }
+  }
+
+  Future<void> _startPlaying(DeviceLibrary library) async {
+    final media = widget.mediaSession;
+    await media?.activate();
+    try {
+      await library.play();
+    } catch (_) {
+      await media?.deactivate();
+      rethrow;
+    }
+  }
+
+  Future<void> _mediaCommand(MediaCommand command, Duration? position) {
+    if (_queue.isEmpty) return Future.value();
+    if (command == MediaCommand.seek) {
+      _scrub.cancel();
+      final duration = _currentTrack?.durationMs?.toInt() ?? 0;
+      if (position == null || duration <= 0) return Future.value();
+      return _seekTo(position.inMilliseconds.clamp(0, duration - 1));
+    }
+    if (command == MediaCommand.next || command == MediaCommand.previous) {
+      _scrub.cancel();
+    }
+    return _control((library) async {
+      final media = widget.mediaSession!;
+      switch (command) {
+        case MediaCommand.play:
+        case MediaCommand.toggle when !media.wantsPlayback:
+          await _startPlaying(library);
+        case MediaCommand.pause:
+        case MediaCommand.toggle:
+          await library.pause();
+          await media.deactivate();
+        case MediaCommand.pauseForInterruption:
+          await library.pause();
+        case MediaCommand.previous:
+          await library.prev();
+        case MediaCommand.next:
+          await library.next();
+        case MediaCommand.seek:
+          break;
+      }
+    });
   }
 
   Future<void> _preparePlayer(DeviceLibrary library) async {
@@ -423,6 +477,7 @@ class _LibraryHomeState extends State<_LibraryHome>
 
   void _receivePlayback(PlaybackEvent event) {
     if (!mounted) return;
+    final previousState = _playback.value?.state;
     if (_trackPass(_playback.value) != _trackPass(event)) _scrub.cancel();
     _playback.value = event;
     _volume = event.volumePercent;
@@ -433,6 +488,23 @@ class _LibraryHomeState extends State<_LibraryHome>
         _playing = playing;
         _queueIndex = event.queueIndex;
       });
+    }
+    final track = _currentTrack;
+    final media = widget.mediaSession;
+    if (media != null &&
+        (track?.id == event.trackId || event.trackId == null)) {
+      media.publish(event, track, _artworkFor(track));
+      if (previousState == PlaybackState.playing &&
+          (event.state == PlaybackState.ended ||
+              event.state == PlaybackState.error)) {
+        unawaited(
+          _control((_) async {
+            if (!media.wantsPlayback && _playback.value?.state == event.state) {
+              await media.deactivate();
+            }
+          }),
+        );
+      }
     }
   }
 
@@ -447,7 +519,12 @@ class _LibraryHomeState extends State<_LibraryHome>
     }
   }
 
-  void _toggle() => unawaited(_control((library) => library.toggle()));
+  void _toggle() {
+    final media = widget.mediaSession;
+    unawaited(
+      media == null ? _control((library) => library.toggle()) : media.toggle(),
+    );
+  }
 
   void _skip({required bool forward}) {
     _scrub.cancel();
@@ -601,11 +678,23 @@ class _LibraryHomeState extends State<_LibraryHome>
     };
   }
 
+  Future<String?>? _artworkFor(DeviceTrack? track) {
+    final artworkId = track?.artworkId ?? _albumArtwork;
+    final library = widget.library;
+    return artworkId == null || library == null
+        ? null
+        : _artwork.putIfAbsent(
+            artworkId,
+            () => library.then(
+              (library) =>
+                  library.artworkPath(id: artworkId, size: ThumbnailSize.small),
+            ),
+          );
+  }
+
   Widget _nowPlaying() {
     final track = _currentTrack;
-    final artworkId = track?.artworkId ?? _albumArtwork;
     final year = _albumYear;
-    final library = widget.library;
     return PodDisplay(
       eyebrow: track?.album ?? 'Now Playing',
       metadata: _playbackError == PodScreen.nowPlaying
@@ -615,17 +704,7 @@ class _LibraryHomeState extends State<_LibraryHome>
           ? const SizedBox.shrink()
           : NowPlaying(
               track: track,
-              artworkPath: artworkId == null || library == null
-                  ? null
-                  : _artwork.putIfAbsent(
-                      artworkId,
-                      () => library.then(
-                        (library) => library.artworkPath(
-                          id: artworkId,
-                          size: ThumbnailSize.small,
-                        ),
-                      ),
-                    ),
+              artworkPath: _artworkFor(track),
               paletteIndex: _artPaletteIndex,
               events: _playback,
               scrubPreview: _scrub.preview,
@@ -636,6 +715,7 @@ class _LibraryHomeState extends State<_LibraryHome>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.mediaSession?.onCommand = null;
     _saveTimer?.cancel();
     unawaited(_playerEvents?.cancel());
     _scrub.dispose();

@@ -12,11 +12,12 @@ pub(crate) fn audio_ready() -> bool {
     APP_CONTEXT.get().is_some()
 }
 
-/// Receive the process-wide application context from MainActivity.
+/// Receive the process-wide context before an activity or service starts.
 #[unsafe(no_mangle)]
-extern "system" fn Java_io_github_s4njee_mytunes_1pod_MainActivity_initializeNativeAudio<'frame>(
+extern "system" fn Java_io_github_s4njee_mytunes_1pod_PodApplication_initializeNativeAudio<
+    'frame,
+>(
     mut env: EnvUnowned<'frame>,
-    _activity: JObject<'frame>,
     context: JObject<'frame>,
 ) {
     env.with_env(|env| -> Result<()> {

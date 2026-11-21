@@ -522,6 +522,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC2: Lock screen and notification show title, artist, art and progress, with play/pause/next/prev/seek wired to Rust.
   - AC3: Interruptions (calls, Siri, alarms) pause and resume per OS policy. Headphone or Bluetooth disconnect **pauses**. Audio focus loss on Android ducks or pauses.
   - AC4: 1 h of locked playback drains < 6% battery on a reference device (informational; record numbers).
+  - _Status 2026-11-21. Android kept playing while the emulator display was off. System media controls paused, resumed, changed tracks, and sought to 12 seconds. The media session exposed cover art. An Android transient focus request paused playback and releasing focus resumed it. Physical lock-screen, route-loss, iOS interruption, and one-hour battery checks remain open._
 - [ ] **E6.S9 Accessibility baseline.** As a VoiceOver/TalkBack user, I want to reach every item without the wheel so that the app is usable for me.
   - AC1: Each list screen exposes a semantic list. Swipe navigation moves the selection. Double-tap activates. The wheel's buttons are labelled buttons ("Menu", "Previous", "Next", "Play/Pause", "Select") 🧪 (semantics tests).
   - AC2: Selection is announced ("Albums, 6, selected, 2 of 5").
