@@ -179,6 +179,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(library.playedAlbum?.title, 'Album 2');
     expect(library.loaded, ['disc-1-track-2', 'disc-2-track-1']);
+    expect(library.startIndex, 0);
     expect(library.played, isTrue);
     expect(find.text('ALBUM 2'), findsWidgets);
     expect(find.text('First track'), findsOneWidget);
@@ -237,6 +238,57 @@ void main() {
     expect(find.text('AAC · 256'), findsOneWidget);
     expect(library.seeks, [23000, 19000]);
   });
+
+  testWidgets('Queue opens on the current track and plays another entry', (
+    tester,
+  ) async {
+    _portrait(tester);
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    final library = _LibraryStub(songCount: 3);
+    await tester.pumpWidget(MyTunesPod(library: Future.value(library)));
+    await tester.pumpAndSettle();
+    _wheel(tester).onStep!(1);
+    await tester.pump();
+    await tester.tap(find.text('SELECT'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PLAY'));
+    await tester.pumpAndSettle();
+    library.emit(index: 1, position: 5000);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('MENU'));
+    await tester.pumpAndSettle();
+    for (var index = 0; index < 3; index++) {
+      _wheel(tester).onStep!(1);
+    }
+    await tester.pump();
+    await tester.tap(find.text('SELECT'));
+    await tester.pumpAndSettle();
+    expect(find.text('QUEUE'), findsOneWidget);
+    expect(find.text('2 tracks'), findsOneWidget);
+    expect(_navigation(tester).selection, 1);
+    Color? colorOf(String text) =>
+        tester.widget<Text>(find.text(text)).style?.color;
+    expect(colorOf('Second track'), MtTheme.light.colors.selectedRowText);
+    expect(colorOf('02'), MtTheme.light.colors.selectedRowText);
+
+    _wheel(tester).onStep!(-1);
+    await tester.pumpAndSettle();
+    expect(colorOf('Second track'), MtTheme.light.colors.accent);
+    expect(colorOf('02'), MtTheme.light.colors.accent);
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    await tester.pumpAndSettle();
+    expect(colorOf('Second track'), MtTheme.dark.colors.accent);
+    expect(colorOf('02'), MtTheme.dark.colors.accent);
+
+    await tester.tap(find.text('PLAY'));
+    await tester.pumpAndSettle();
+    expect(library.startIndex, 0);
+    expect(library.loaded, ['disc-1-track-2', 'disc-2-track-1']);
+    expect(find.text('First track'), findsOneWidget);
+    expect(_navigation(tester).screen, PodScreen.nowPlaying);
+  });
 }
 
 void _portrait(WidgetTester tester) {
@@ -263,6 +315,7 @@ class _LibraryStub implements DeviceLibrary {
   final seeks = <int>[];
   final transport = <String>[];
   double? volume;
+  int? startIndex;
   AlbumId? playedAlbum;
   List<String> loaded = [];
   bool played = false;
@@ -360,7 +413,7 @@ class _LibraryStub implements DeviceLibrary {
     required List<String> trackIds,
     required int startIndex,
   }) async {
-    expect(startIndex, 0);
+    this.startIndex = startIndex;
     loaded = trackIds;
   }
 

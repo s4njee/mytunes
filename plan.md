@@ -506,6 +506,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
 - [ ] **E6.S5 Queue.** As a listener, I want to see what's up next so that I can jump around.
   - AC1: 48 pt rows: zero-padded mono track number, title + artist, duration (`m:ss`). The currently playing row's number and title are accent-coloured, independent of selection (light theme: white when selected, blue when playing and unselected).
   - AC2: On entry, the selection starts on the currently playing row. Centre plays the selected track and goes to Now Playing.
+  - _Status 2026-11-21. The Android app opened Queue on the current track and highlighted it independently of wheel selection in both themes. PLAY started the selected entry, kept the queue order, and opened Now Playing. Native iOS, reference goldens, and hosted CI remain open._
 - [ ] **E6.S6 Equalizer.** As a listener, I want to shape the sound with the wheel so that the EQ is fun to use.
   - AC1: 5 bands, a 190 pt band row, centre-anchored bars `height = |gain|/6 × 50%`, Hz labels and signed gains per handoff. The active band is the accent colour, others `accent-42`/`accent-half`.
   - AC2: Wheel step = ±1 dB on the active band, clamped ±6. Centre = next band (wrap). Changes are applied to `mt-audio` live (smoothed).

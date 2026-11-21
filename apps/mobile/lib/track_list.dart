@@ -47,11 +47,13 @@ class TrackRow extends StatelessWidget {
     required this.track,
     required this.number,
     required this.selected,
+    this.current = false,
   });
 
   final DeviceTrack track;
   final int number;
   final bool selected;
+  final bool current;
 
   @override
   Widget build(BuildContext context) {
@@ -61,10 +63,16 @@ class TrackRow extends StatelessWidget {
     final secondary = lightSelection
         ? colors.selectedRowSecondary
         : colors.textQuaternary;
+    final highlight = lightSelection
+        ? colors.selectedRowText
+        : current
+        ? colors.accent
+        : null;
     final ms = track.durationMs?.toInt();
     return Semantics(
       container: true,
       selected: selected,
+      value: current ? 'Current track' : null,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(MtRadius.queueRow),
@@ -79,7 +87,9 @@ class TrackRow extends StatelessWidget {
                 constraints: const BoxConstraints(minWidth: 20),
                 child: Text(
                   number.toString().padLeft(2, '0'),
-                  style: MtType.timecode.copyWith(color: secondary),
+                  style: MtType.timecode.copyWith(
+                    color: current ? highlight : secondary,
+                  ),
                 ),
               ),
               Expanded(
@@ -93,9 +103,7 @@ class TrackRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: MtType.queueTitle.copyWith(
-                        color: lightSelection
-                            ? colors.selectedRowText
-                            : colors.textTitle,
+                        color: highlight ?? colors.textTitle,
                       ),
                     ),
                     if (track.artist case final artist?)

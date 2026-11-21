@@ -143,9 +143,11 @@ class _LibraryHomeState extends State<_LibraryHome> {
           id: album.id,
         ),
         PodScreen.songs => [?await _songs.itemAt(selection)],
+        PodScreen.queue => _queue,
         _ => const <DeviceTrack>[],
       };
       if (tracks.isEmpty || !mounted) return;
+      final startIndex = origin == PodScreen.queue ? selection : 0;
       await _withTransport((library) async {
         if (!navigation.mounted || navigation.screen != origin) return;
         _scrub.cancel();
@@ -161,14 +163,16 @@ class _LibraryHomeState extends State<_LibraryHome> {
         }
         await library.loadQueue(
           trackIds: tracks.map((track) => track.id).toList(growable: false),
-          startIndex: 0,
+          startIndex: startIndex,
         );
         if (!mounted) return;
         setState(() {
           _queue = tracks;
-          _queueIndex = 0;
-          _playingAlbum = album;
-          _artPaletteIndex = album == null ? 0 : selection;
+          _queueIndex = startIndex;
+          if (origin != PodScreen.queue) {
+            _playingAlbum = album;
+            _artPaletteIndex = album == null ? 0 : selection;
+          }
         });
         await library.play();
         if (mounted) {
@@ -264,9 +268,13 @@ class _LibraryHomeState extends State<_LibraryHome> {
       case PodScreen.menu:
         final item = LibraryMenuItem.values[navigation.selection];
         if (item == LibraryMenuItem.nowPlaying && !_hasPlayed) return null;
-        return () => navigation.push(item.destination);
+        final initialIndex = item == LibraryMenuItem.queue && _queue.isNotEmpty
+            ? (_queueIndex ?? 0).clamp(0, _queue.length - 1)
+            : 0;
+        return () => navigation.push(item.destination, selection: initialIndex);
       case PodScreen.songs when (counts?.songs ?? 0) > 0:
       case PodScreen.albums when (counts?.albums ?? 0) > 0:
+      case PodScreen.queue when _queue.isNotEmpty:
         return () => unawaited(_playSelection(navigation));
       case PodScreen.nowPlaying when _queue.isNotEmpty:
         return _toggle;
@@ -359,6 +367,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
             track: _queue[index],
             number: index + 1,
             selected: index == selection,
+            current: index == _queueIndex,
           ),
         ),
       ),
