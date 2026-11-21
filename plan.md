@@ -260,12 +260,13 @@ Notation: **As a** *role*, **I want** *capability*, **so that** *benefit*. ACs a
   - AC4: Workflows triggered by fork PRs have no access to secrets. Release signing secrets are used only on tag pushes from `main` (E15).
   - _Status 2026-11-18: `.github/workflows/ci.yml` written (plus a Linux E2E smoke test via tauri-driver). Every step passes locally on Linux. Not yet run on GitHub, so it stays unticked until the first green run, including the macOS, Windows and iOS jobs._
   - _Status 2026-11-18 (later): the E0 work is now committed locally on `main` (first commit `0985e93`, "E0: baseline"); the repo had no commits before that. Still to do: add the GitHub remote, push `main`, and get the first green CI run._
-- [ ] **E0.S3 Design tokens & reference screens.** As a developer, I want tokens in one file with codegen, and committed reference screenshots, so that both apps use exact design values.
+- [x] **E0.S3 Design tokens & reference screens.** As a developer, I want tokens in one file with codegen, and committed reference screenshots, so that both apps use exact design values.
   - AC1: `design/tokens.json` contains every colour, type role, spacing, radius and shadow from `design/handoff/README.md` §Design Tokens, for `dark` and `light`, named after the handoff's token names.
   - AC2: `tools/gen_tokens` produces Dart and CSS outputs. CI fails if the generated files are stale 🧪.
   - AC3: A unit test asserts sample values (`amber == #F0A23C`, `light.accent == #2F6DB5`, `wheel diameter == 252`) 🧪.
   - AC4: PNG screenshots of every 1a and 2a screen (Menu, Albums, Now Playing, Queue, Equalizer) at 402×874 @1× and @3× are captured from the prototype into `design/handoff/screens/`. `.gitignore` excludes `design/handoff/support.js` and `design/handoff/ios-frame.jsx`.
   - _Status 2026-11-18: AC1–AC3 done (the Dart output carries `// dart format off` so formatters can't make it stale). AC4 is pending: the screenshots still need capturing from the prototype. The gitignore part is done._
+  - _Status 2026-11-21. All twenty original 1a and 2a PNG exports are in `design/handoff/screens/`, with validated 1× and 3× dimensions._
 - [x] **E0.S4 Test fixtures.** As a developer, I want generated audio fixtures so that tests never depend on copyrighted music.
   - AC1: `tools/gen_fixtures` (using sox/ffmpeg if present, otherwise pure-Rust WAV + FLAC encoding) generates sine/chirp files in MP3, M4A (AAC), ALAC, FLAC 16/44.1 and 24/96, WAV, Ogg, with varied tags (including Unicode, missing fields, embedded art, compilation flag).
   - AC2: It includes a **gapless pair**: one continuous sine split into two files at a non-zero-crossing point, for the gapless test.
@@ -460,7 +461,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC4: Portrait-locked for v1 (landscape is a design gap).
   - AC5: Golden tests for each screen in both themes, at 402×874 logical px, against `design/handoff/screens/`. Tolerance ≤ 1.5% pixel diff, excluding album-art placeholders 🧪.
   - _Status 2026-11-20: The shared portrait shell, system appearance, native status bar, bundled fonts, and font licences are implemented. Both themes and the portrait lock passed on an Android emulator. Physical device verification and the five-screen golden comparisons remain open. The reference PNGs are absent from the checkout. See ADR-0027._
-  - _Verification 2026-11-21. Android emulator captures cover the five screens in both themes. The screenshot comparison test is in place. Actual comparisons await the original PNGs in Q6. Physical device verification remains open._
+  - _Verification 2026-11-21. The reference PNGs and a matching Flutter capture fixture cover all five screens in both themes. Exact matching reports 9.2%–25.9% changed pixels after artwork masking. A Pixelmatch diagnostic gives 0.49%–1.43% with its standard colour and anti-aliasing settings. Sign-off and physical device verification remain open._
 - [ ] **E5.S2 Rust bridge facade.** As the Flutter app, I want a narrow, async Rust API so that UI code stays simple.
   - AC1: `mt-ffi` exposes: `open_device_db(path)`, `library_counts()`, `albums(page)`, `album_tracks(id)`, `artists()`, `songs(page)`, `playlists()`, `playlist_tracks(id)`, `artwork_path(id, size)`, the player API (§3.4), `player_events() -> Stream`, `settings_get/set`, `record_event(...)`, and the sync client API (M4).
   - AC2: All calls are async and never block the UI isolate. A test calls each from Dart 🧪.
@@ -486,6 +487,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC6: The hint text under the wheel is `DRAG RING TO BROWSE / SCRUB / SET GAIN` by context. It's `text-30` normally and accent-coloured while dragging.
   - AC7: The centre label reflects context: `SELECT` (Menu) · `PLAY` (Albums, Queue) · `PAUSE`/`PLAY` (Now Playing) · `BAND <hz>` (Equalizer). The `▶ ❙❙` label is static.
   - _Status 2026-11-20: The wheel is in the app shell and MENU uses the screen stack. Flutter tests verify detent math, hit regions, rotation, labels, and haptic requests. Android emulator checks cover both themes and wheel input with test screens. The Menu rows and transport actions are covered by the following E6 stories. Native iOS haptic latency, reference goldens, and hosted CI remain open._
+  - _Verification 2026-11-21. A physical Samsung SM-X230 on Android 16 used a ring drag to select Albums and the centre button to open Albums and play the imported album. Android recorded the haptic requests. The tablet reports no vibration actuator, so tactile feedback still needs a phone._
 - [ ] **E6.S2 Display header & Menu screen.** As a user, I want the root menu so that I can reach everything.
   - AC1: The header row shows the accent eyebrow on the left and `text-40` metadata on the right (`N songs · M albums`) with the `rule` underline, per the handoff.
   - AC2: Menu rows: Now Playing · Albums (count) · Songs (count) · Queue (count) · Equalizer. 54 pt rows, dot + label + mono count. Selection styling differs by theme (dark: amber-14 tint, amber dot, white label, radius 10. Light: solid blue bar, white text, white dot, radius 5).
@@ -524,13 +526,14 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC3: Interruptions (calls, Siri, alarms) pause and resume per OS policy. Headphone or Bluetooth disconnect **pauses**. Audio focus loss on Android ducks or pauses.
   - AC4: 1 h of locked playback drains < 6% battery on a reference device (informational; record numbers).
   - _Status 2026-11-21. Android kept playing while the emulator display was off. System media controls paused, resumed, changed tracks, and sought to 12 seconds. The media session exposed cover art. An Android transient focus request paused playback and releasing focus resumed it. Physical lock-screen, route-loss, iOS interruption, and one-hour battery checks remain open._
+  - _Physical Android verification 2026-11-21. On Samsung SM-X230 with Android 16, the player advanced 600.1 seconds during a 600-second locked interval. Pause, play, next, and previous worked through the system media session with the display off. The Samsung lock screen displayed title and artist, and its pause and play buttons controlled the app. A Samsung Clock timer paused playback through transient audio focus and playback resumed when Clock released focus. The USB-connected run supplied no unplugged battery measurement. Physical route-loss and iOS checks remain open._
 - [ ] **E6.S9 Accessibility baseline.** As a VoiceOver/TalkBack user, I want to reach every item without the wheel so that the app is usable for me.
   - AC1: Each list screen exposes a semantic list. Swipe navigation moves the selection. Double-tap activates. The wheel's buttons are labelled buttons ("Menu", "Previous", "Next", "Play/Pause", "Select") 🧪 (semantics tests).
   - AC2: Selection is announced ("Albums, 6, selected, 2 of 5").
   - AC3: Hit targets ≥ 44 pt. Contrast pairs from the handoff are respected (no meaningful text at ≤ .35 alpha).
   - _Status 2026-11-21. Screen readers can focus and activate library, album, song, and queue items. Playback position and EQ bands expose adjustable actions. Flutter tests check selection, activation, and hit sizes. Android native accessibility actions selected and played an album with TalkBack active. Physical VoiceOver and TalkBack reviews remain open. See ADR-0032._
 
-The complete M3 implementation branch passed all nine [hosted CI jobs](https://github.com/s4njee/mytunes/actions/runs/44888061693) at commit `02f24c0`, including Android emulator integration and the unsigned iOS build.
+The M3 implementation branch passed all nine [hosted CI jobs](https://github.com/s4njee/mytunes/actions/runs/44889817555) at commit `64b86c2`, including Android emulator integration and the unsigned iOS build.
 
 **M3 exit:** on a physical iPhone and Android phone, with a dev-seeded library, all five screens in both themes pass golden tests. Background playback works. The owner does a "feel review" of the wheel and signs it off.
 
@@ -717,7 +720,8 @@ The complete M3 implementation branch passed all nine [hosted CI jobs](https://g
 | Q3 | ~~How should the wheel reach the EQ status rows?~~ | — | Owner approved pressing centre after band 5. See ADR-0031. |
 | Q4 | Desktop platforms priority order? | — | Assumed Linux → macOS → Windows. |
 | Q5 | ~~Project licence?~~ **Decided: `MIT OR Apache-2.0`** (owner, 2026-11-18). | — | Record in ADR-0006. Dependencies must be permissive or weak-copyleft (MPL-2.0 is fine, e.g. symphonia). Strong copyleft (GPL, AGPL) is not allowed. |
-| Q6 | Where can we obtain the original 1a and 2a viewport PNGs for Menu, Albums, Now Playing, Queue, and Equalizer? | E0.S3 reference delivery and E5.S1 visual sign-off | Owner to provide the exports or an accessible copy of the original prototype. See [the comparison instructions](design/handoff/README.md#mobile-screenshot-comparisons). |
+| Q6 | ~~Where can we obtain the original 1a and 2a viewport PNGs?~~ | E0.S3 reference delivery and E5.S1 visual sign-off | The original runtime was available in the earlier checkout. The twenty viewport exports are committed in `design/handoff/screens/`. See [the comparison instructions](design/handoff/README.md#mobile-screenshot-comparisons). |
+| Q7 | Should the 1.5% limit use exact pixel matching or standard Pixelmatch handling for colour and anti-aliasing? | E5.S1 golden sign-off across browser and Flutter renderers | Owner to confirm the comparison method. The current automated comparison uses exact pixels. |
 
 ---
 

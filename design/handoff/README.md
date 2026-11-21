@@ -295,14 +295,15 @@ Reading the source: `iPod Player.dc.html` holds markup for all three directions 
 
 ## Mobile screenshot comparisons
 
-Save the original 1a (dark) and 2a (light) viewport PNGs in `screens/`. Use the names `{dark,light}-{menu,albums,now-playing,queue,equalizer}.png` for the 402×874 references. Use the same names in a separate directory for captures with matching library and player state. The comparison accepts an integer pixel ratio and scales to 402×874. Crop any external device bezel so the image contains the viewport only.
+The `screens/` PNGs were exported from 1a (dark) and 2a (light) in `iPod Player.dc.html`. The capture uses the original 402×874 viewport with the mock OS chrome hidden. Now Playing uses the prototype's initial playing state at 1:26. The comparison reads the 1× files, named `{dark,light}-{menu,albums,now-playing,queue,equalizer}.png`. The matching 3× exports use the `@3x.png` suffix.
 
-If the reference uses artwork placeholders, describe their bounds in `screens/artwork.json`. Give each applicable screenshot stem an array of `[left, top, right, bottom]` rectangles in logical pixels, with the right and bottom edges excluded. Keep the rectangles within the placeholder artwork so screen content and artwork frames count toward the 1.5% threshold.
+The artwork bounds in `screens/artwork.json` come from the prototype's visible placeholders. Each screenshot stem has an array of `[left, top, right, bottom]` rectangles in logical pixels, with the right and bottom edges excluded.
 
-From `apps/mobile`, compare all ten pairs with:
+Run both commands from `apps/mobile` to render and compare all ten states.
 
 ```sh
-MYTUNES_HANDOFF_CAPTURES=/absolute/path/to/captures flutter test test/handoff_screenshots_test.dart
+MYTUNES_RENDER_HANDOFF="$PWD/build/handoff-captures" flutter test test/handoff_capture_test.dart
+MYTUNES_HANDOFF_CAPTURES="$PWD/build/handoff-captures" flutter test test/handoff_screenshots_test.dart
 ```
 
-The report flags missing images, invalid dimensions, and comparisons over the threshold. The suite runs the comparator's unit tests during ordinary `flutter test` runs and skips the device comparisons until a capture directory is configured.
+For a device capture, use the same filenames and match the fixture's library and player state. The comparison accepts an integer pixel ratio and scales to 402×874. Use viewport captures with the device chrome hidden. The report flags missing images, invalid dimensions, and comparisons over the 1.5% threshold. Ordinary `flutter test` runs exercise the renderer and comparator. Setting a capture directory enables the screenshot comparisons.
