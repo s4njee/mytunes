@@ -16,6 +16,7 @@ import 'pod_shell.dart';
 import 'src/equalizer_settings.dart';
 import 'src/library_pages.dart';
 import 'src/player_events.dart';
+import 'src/pod_session.dart';
 import 'src/rust/api/device.dart';
 import 'src/rust/api/playback.dart';
 import 'src/rust/frb_generated.dart';
@@ -43,10 +44,17 @@ Future<DeviceLibrary> _openLibrary() async {
 }
 
 /// MyTunes Pod follows the platform's light or dark appearance.
-class MyTunesPod extends StatelessWidget {
+class MyTunesPod extends StatefulWidget {
   const MyTunesPod({super.key, this.library});
 
   final Future<DeviceLibrary>? library;
+
+  @override
+  State<MyTunesPod> createState() => _MyTunesPodState();
+}
+
+class _MyTunesPodState extends State<MyTunesPod> {
+  ThemeMode _theme = ThemeMode.system;
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +63,7 @@ class MyTunesPod extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: MtTheme.light.materialTheme,
       darkTheme: MtTheme.dark.materialTheme,
+      themeMode: _theme,
       themeAnimationDuration: Duration.zero,
       builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
         value: MtTheme.of(context).systemUi,
@@ -64,21 +73,28 @@ class MyTunesPod extends StatelessWidget {
         '/licences': (context) =>
             const LicensePage(applicationName: 'MyTunes Pod'),
       },
-      home: _LibraryHome(library: library),
+      home: _LibraryHome(
+        library: widget.library,
+        onThemeRestored: (mode) {
+          if (_theme != mode) setState(() => _theme = mode);
+        },
+      ),
     );
   }
 }
 
 class _LibraryHome extends StatefulWidget {
-  const _LibraryHome({required this.library});
+  const _LibraryHome({required this.library, required this.onThemeRestored});
 
   final Future<DeviceLibrary>? library;
+  final ValueChanged<ThemeMode> onThemeRestored;
 
   @override
   State<_LibraryHome> createState() => _LibraryHomeState();
 }
 
-class _LibraryHomeState extends State<_LibraryHome> {
+class _LibraryHomeState extends State<_LibraryHome>
+    with WidgetsBindingObserver {
   late Future<LibraryCounts>? _counts = widget.library?.then(
     (library) => library.libraryCounts(),
   );
@@ -92,42 +108,159 @@ class _LibraryHomeState extends State<_LibraryHome> {
   String? _notice;
   List<DeviceTrack> _queue = const [];
   int? _queueIndex;
-  DeviceAlbum? _playingAlbum;
+  String? _albumArtwork;
+  int? _albumYear;
   int _artPaletteIndex = 0;
   final _artwork = <String, Future<String?>>{};
   final _playback = ValueNotifier<PlaybackEvent?>(null);
   late final _scrub = WheelScrub(_seekTo);
   StreamSubscription<PlaybackEvent>? _playerEvents;
   Future<void> _commands = Future.value();
-  bool _volumeConfigured = false;
+  bool _playerConfigured = false;
+  int _volume = NowPlaying.defaultVolumePercent;
   EqualizerSettings _equalizer = const EqualizerSettings();
   EqualizerSettings? _appliedEqualizer;
-  late final _settingsReady = _loadEqualizer();
-  bool _equalizerReady = false;
   bool _equalizerError = false;
   bool _hasPlayed = false;
   bool _playing = false;
   bool _startingPlayback = false;
   PodScreen? _playbackError;
+  bool _restoring = false;
+  PodScreen _screen = PodScreen.menu;
+  ThemeMode _theme = ThemeMode.system;
+  DateTime _lastForeground = DateTime.now();
+  bool _foreground = true;
+  Timer? _saveTimer;
+  Future<void> _saves = Future.value();
 
   @override
   void initState() {
     super.initState();
-    unawaited(_settingsReady);
+    WidgetsBinding.instance.addObserver(this);
+    if (widget.library != null) {
+      _restoring = true;
+      unawaited(_restoreSession());
+    }
   }
 
-  Future<void> _loadEqualizer() async {
+  Future<void> _restoreSession() async {
     try {
-      final library = await widget.library;
-      final json = await library?.settingsGet(
-        key: EqualizerSettings.storageKey,
-      );
-      final saved = EqualizerSettings.decode(json);
-      if (mounted) _equalizer = saved;
+      final library = await widget.library!;
+      final json = await library.settingsGet(key: PodSession.storageKey);
+      PodSession? saved;
+      try {
+        saved = PodSession.decode(json);
+      } on FormatException {
+        // An unreadable session can still have a valid legacy EQ preference.
+      }
+      if (!mounted) return;
+      if (saved == null) {
+        final legacy = await library.settingsGet(
+          key: EqualizerSettings.storageKey,
+        );
+        if (mounted) _equalizer = EqualizerSettings.decode(legacy);
+        return;
+      }
+      _equalizer = saved.equalizer;
+      _volume = saved.volumePercent;
+      _theme = saved.theme;
+      widget.onThemeRestored(_theme);
+      await _restoreQueue(library, saved);
+      _screen = saved.startScreen(DateTime.now(), hasQueue: _queue.isNotEmpty);
     } catch (_) {
-      // Use the defaults when the saved setting is unreadable.
+      // The library still opens when a saved track or audio output is unavailable.
+    } finally {
+      if (mounted) setState(() => _restoring = false);
     }
-    if (mounted) setState(() => _equalizerReady = true);
+  }
+
+  Future<void> _restoreQueue(DeviceLibrary library, PodSession saved) async {
+    if (saved.trackIds.isEmpty) return;
+    final tracks = await library.tracksByIds(ids: saved.trackIds);
+    if (!mounted || tracks.isEmpty) return;
+    final savedIndex = saved.queueIndex.clamp(0, saved.trackIds.length - 1);
+    final surviving = tracks.map((track) => track.id).toSet();
+    final index = saved.trackIds
+        .take(savedIndex)
+        .where(surviving.contains)
+        .length
+        .clamp(0, tracks.length - 1);
+    final track = tracks[index];
+    await _preparePlayer(library);
+    if (!mounted) return;
+    await library.loadQueue(
+      trackIds: tracks.map((track) => track.id).toList(growable: false),
+      startIndex: index,
+    );
+    if (!mounted) return;
+    _queue = tracks;
+    _queueIndex = index;
+    _albumArtwork = saved.albumArtwork;
+    _albumYear = saved.albumYear;
+    _artPaletteIndex = saved.paletteIndex;
+    _hasPlayed = true;
+    final duration = track.durationMs?.toInt() ?? 0;
+    if (track.id == saved.trackIds[savedIndex] &&
+        saved.positionMs > 0 &&
+        duration > 0) {
+      await library.seek(
+        positionMs: BigInt.from(saved.positionMs.clamp(0, duration - 1)),
+      );
+    }
+  }
+
+  void _scheduleSave() {
+    if (_restoring || widget.library == null) return;
+    if (_foreground) _lastForeground = DateTime.now();
+    _saveTimer ??= Timer(const Duration(seconds: 1), _saveSession);
+  }
+
+  void _saveSession() {
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    final database = widget.library;
+    if (_restoring || database == null) return;
+    final event = _playback.value;
+    final position =
+        event?.trackId == _currentTrack?.id && event?.queueIndex == _queueIndex
+        ? event?.positionMs.toInt() ?? 0
+        : 0;
+    final session = PodSession(
+      trackIds: _queue.map((track) => track.id).toList(growable: false),
+      queueIndex: _queueIndex ?? 0,
+      positionMs: position,
+      volumePercent: _volume,
+      screen: _screen,
+      theme: _theme,
+      lastForegroundMs: _lastForeground.millisecondsSinceEpoch,
+      albumArtwork: _albumArtwork,
+      albumYear: _albumYear,
+      paletteIndex: _artPaletteIndex,
+      equalizer: _equalizer,
+    ).encode();
+    _saves = _saves.then((_) async {
+      try {
+        final library = await database;
+        await library.settingsSet(
+          key: PodSession.storageKey,
+          valueJson: session,
+        );
+      } catch (_) {
+        debugPrint('Could not save the mobile session.');
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _foreground = true;
+      _scheduleSave();
+    } else if (_foreground) {
+      _lastForeground = DateTime.now();
+      _foreground = false;
+      _saveSession();
+    }
   }
 
   void _equalizerStep(PodNavigationState navigation, int direction) {
@@ -160,21 +293,18 @@ class _LibraryHomeState extends State<_LibraryHome> {
   void _changeEqualizer(EqualizerSettings settings) {
     if (identical(settings, _equalizer)) return;
     setState(() => _equalizer = settings);
-    unawaited(_saveEqualizer(settings));
+    _scheduleSave();
+    unawaited(_applyEqualizer(settings));
   }
 
-  Future<void> _saveEqualizer(EqualizerSettings settings) async {
+  Future<void> _applyEqualizer(EqualizerSettings settings) async {
     try {
       await _withTransport((library) async {
         if (!identical(settings, _equalizer)) return;
-        if (_volumeConfigured) {
+        if (_playerConfigured) {
           await settings.apply(library, previous: _appliedEqualizer);
           _appliedEqualizer = settings;
         }
-        await library.settingsSet(
-          key: EqualizerSettings.storageKey,
-          valueJson: settings.encode(),
-        );
       });
       if (mounted && _equalizerError) setState(() => _equalizerError = false);
     } catch (_) {
@@ -226,24 +356,12 @@ class _LibraryHomeState extends State<_LibraryHome> {
         _ => const <DeviceTrack>[],
       };
       if (tracks.isEmpty || !mounted) return;
-      await _settingsReady;
       final startIndex = origin == PodScreen.queue ? selection : 0;
       await _withTransport((library) async {
         if (!navigation.mounted || navigation.screen != origin) return;
         _scrub.cancel();
-        _playerEvents ??= library.playerEvents().listen(
-          _receivePlayback,
-          onError: (Object _) {},
-        );
-        if (!_volumeConfigured) {
-          final equalizer = _equalizer;
-          await equalizer.apply(library);
-          _appliedEqualizer = equalizer;
-          await library.setVolume(
-            volume: NowPlaying.defaultVolumePercent / 100,
-          );
-          _volumeConfigured = true;
-        }
+        await _preparePlayer(library);
+        if (!mounted) return;
         await library.loadQueue(
           trackIds: tracks.map((track) => track.id).toList(growable: false),
           startIndex: startIndex,
@@ -253,7 +371,8 @@ class _LibraryHomeState extends State<_LibraryHome> {
           _queue = tracks;
           _queueIndex = startIndex;
           if (origin != PodScreen.queue) {
-            _playingAlbum = album;
+            _albumArtwork = album?.artworkId;
+            _albumYear = album?.id.year;
             _artPaletteIndex = album == null ? 0 : selection;
           }
         });
@@ -263,6 +382,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
             _hasPlayed = true;
             _playbackError = null;
           });
+          _scheduleSave();
           if (navigation.mounted && navigation.screen == origin) {
             navigation.push(PodScreen.nowPlaying);
           }
@@ -273,6 +393,20 @@ class _LibraryHomeState extends State<_LibraryHome> {
     } finally {
       _startingPlayback = false;
     }
+  }
+
+  Future<void> _preparePlayer(DeviceLibrary library) async {
+    if (_playerConfigured) return;
+    final equalizer = _equalizer;
+    await equalizer.apply(library);
+    _appliedEqualizer = equalizer;
+    await library.setVolume(volume: _volume / 100);
+    if (!mounted) return;
+    _playerConfigured = true;
+    _playerEvents = library.playerEvents().listen(
+      _receivePlayback,
+      onError: (Object _) {},
+    );
   }
 
   Future<void> _withTransport(Future<void> Function(DeviceLibrary) action) {
@@ -291,6 +425,8 @@ class _LibraryHomeState extends State<_LibraryHome> {
     if (!mounted) return;
     if (_trackPass(_playback.value) != _trackPass(event)) _scrub.cancel();
     _playback.value = event;
+    _volume = event.volumePercent;
+    _scheduleSave();
     final playing = event.state == PlaybackState.playing;
     if (playing != _playing || event.queueIndex != _queueIndex) {
       setState(() {
@@ -361,7 +497,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
         return () => unawaited(_playSelection(navigation));
       case PodScreen.nowPlaying when _queue.isNotEmpty:
         return _toggle;
-      case PodScreen.equalizer when _equalizerReady:
+      case PodScreen.equalizer:
         return () => _equalizerCentre(navigation);
       default:
         return null;
@@ -467,8 +603,8 @@ class _LibraryHomeState extends State<_LibraryHome> {
 
   Widget _nowPlaying() {
     final track = _currentTrack;
-    final artworkId = track?.artworkId ?? _playingAlbum?.artworkId;
-    final year = _playingAlbum?.id.year;
+    final artworkId = track?.artworkId ?? _albumArtwork;
+    final year = _albumYear;
     final library = widget.library;
     return PodDisplay(
       eyebrow: track?.album ?? 'Now Playing',
@@ -499,6 +635,8 @@ class _LibraryHomeState extends State<_LibraryHome> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _saveTimer?.cancel();
     unawaited(_playerEvents?.cancel());
     _scrub.dispose();
     _playback.dispose();
@@ -507,6 +645,16 @@ class _LibraryHomeState extends State<_LibraryHome> {
 
   @override
   Widget build(BuildContext context) {
+    if (_restoring) {
+      return const PodShell(
+        display: PodDisplay(
+          eyebrow: 'Library',
+          metadata: 'Opening library…',
+          body: SizedBox.shrink(),
+        ),
+        deck: ClickWheel(screen: PodScreen.menu),
+      );
+    }
     return FutureBuilder<LibraryCounts>(
       future: _counts,
       builder: (context, snapshot) {
@@ -521,6 +669,12 @@ class _LibraryHomeState extends State<_LibraryHome> {
           _ => '0 songs · 0 albums',
         };
         return PodNavigation(
+          initialScreen: _screen,
+          initialSelection: _screen == PodScreen.queue ? _queueIndex ?? 0 : 0,
+          onScreenChanged: (screen) {
+            _screen = screen;
+            _scheduleSave();
+          },
           display: (context, screen, selection) =>
               _display(screen, selection, counts, metadata),
           deck: (context, navigation) {
@@ -541,7 +695,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
               onNext: hasQueue ? () => _skip(forward: true) : null,
               onPlayPause: hasQueue ? _toggle : null,
               onDragEnd: now ? _scrub.release : null,
-              onStep: equalizer && _equalizerReady
+              onStep: equalizer
                   ? (direction) => _equalizerStep(navigation, direction)
                   : now
                   ? _scrubStep

@@ -516,6 +516,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
 - [ ] **E6.S7 Persistence & resume.** As a user, I want the app to resume where I left it so that it feels like a device, not an app.
   - AC1: Persist `trackIndex`/queue, position, volume, eqGains, settings and theme to `device.sqlite state` on every change (debounced 1 s) and on background 🧪.
   - AC2: Cold start restores the last screen (Menu if > 1 h since last use), queue and position, paused.
+  - _Status 2026-11-21. The app coalesces state writes over one second and flushes when it leaves the foreground. A seeded Android cold restart restored the last screen, ordered queue, selected track, eight-second position, volume, and paused state. Tests cover stale screens, legacy EQ settings, and ordered track lookup. Native iOS and hosted CI remain open._
 - [ ] **E6.S8 Background & lock screen.** As a listener, I want music to keep playing with the screen off so that it's a real player.
   - AC1: iOS: `UIBackgroundModes=audio`, AVAudioSession `.playback`. Android: audio_service foreground service with a media notification.
   - AC2: Lock screen and notification show title, artist, art and progress, with play/pause/next/prev/seek wired to Rust.

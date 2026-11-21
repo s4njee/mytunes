@@ -108,6 +108,9 @@ abstract class DeviceLibrary implements RustOpaqueInterface {
 
   /// Toggle between playback and pause.
   Future<void> toggle();
+
+  /// Read tracks in the requested order, retaining repeats and skipping removed IDs.
+  Future<List<DeviceTrack>> tracksByIds({required List<String> ids});
 }
 
 /// All the fields that distinguish one album in the device schema.

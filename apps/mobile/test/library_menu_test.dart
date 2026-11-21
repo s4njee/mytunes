@@ -2,18 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart' show ThemeMode;
 import 'package:mytunes_pod/albums_grid.dart';
 import 'package:mytunes_pod/click_wheel.dart';
 import 'package:mytunes_pod/main.dart';
 import 'package:mytunes_pod/pod_navigation.dart';
 import 'package:mytunes_pod/src/equalizer_settings.dart';
+import 'package:mytunes_pod/src/pod_session.dart';
 import 'package:mytunes_pod/src/rust/api/device.dart';
 import 'package:mytunes_pod/src/rust/api/playback.dart';
 import 'package:mytunes_pod/theme/mt_theme.dart';
 import 'package:mytunes_pod/theme/tokens.g.dart';
 
 void main() {
-  testWidgets('Library uses live counts and the two selection styles', (
+  _libraryTest('Library uses live counts and the two selection styles', (
     tester,
   ) async {
     _portrait(tester);
@@ -72,7 +74,7 @@ void main() {
     }
   });
 
-  testWidgets('wheel clamps at both ends and MENU resets the selection', (
+  _libraryTest('wheel clamps at both ends and MENU resets the selection', (
     tester,
   ) async {
     _portrait(tester);
@@ -94,7 +96,7 @@ void main() {
     expect(_navigation(tester).selection, 0);
   });
 
-  testWidgets('Songs pages through the library and plays the selected track', (
+  _libraryTest('Songs pages through the library and plays the selected track', (
     tester,
   ) async {
     _portrait(tester);
@@ -130,7 +132,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('NOW PLAYING'), findsOneWidget);
   });
-  testWidgets('Albums browses 500 tiles and reveals the wheel selection', (
+  _libraryTest('Albums browses 500 tiles and reveals the wheel selection', (
     tester,
   ) async {
     _portrait(tester);
@@ -163,7 +165,7 @@ void main() {
     expect(library.albumPages.length, lessThan(8));
   });
 
-  testWidgets('SELECT plays an album starting with its first ordered track', (
+  _libraryTest('SELECT plays an album starting with its first ordered track', (
     tester,
   ) async {
     _portrait(tester);
@@ -187,7 +189,7 @@ void main() {
     expect(_navigation(tester).screen, PodScreen.nowPlaying);
   });
 
-  testWidgets('Now Playing renders snapshots and controls the Rust bridge', (
+  _libraryTest('Now Playing renders snapshots and controls the Rust bridge', (
     tester,
   ) async {
     _portrait(tester);
@@ -240,7 +242,7 @@ void main() {
     expect(library.seeks, [23000, 19000]);
   });
 
-  testWidgets('Queue opens on the current track and plays another entry', (
+  _libraryTest('Queue opens on the current track and plays another entry', (
     tester,
   ) async {
     _portrait(tester);
@@ -291,7 +293,7 @@ void main() {
     expect(_navigation(tester).screen, PodScreen.nowPlaying);
   });
 
-  testWidgets('Equalizer changes live DSP and persists the wheel settings', (
+  _libraryTest('Equalizer changes live DSP and persists the wheel settings', (
     tester,
   ) async {
     _portrait(tester);
@@ -334,9 +336,9 @@ void main() {
     expect(library.gapless, isFalse);
     expect(library.volumeCap, 0.5);
     expect(library.shuffle, PlaybackShuffle.off);
-    final saved = EqualizerSettings.decode(
-      library.settings[EqualizerSettings.storageKey],
-    );
+    await tester.pump(const Duration(seconds: 1));
+    final saved = PodSession.decode(library.settings[PodSession.storageKey])!
+        .equalizer;
     expect(saved.gains, [6, 1, -2, 4, 2]);
     expect(saved.volumeLimited, isTrue);
     expect(saved.gapless, isFalse);
@@ -346,6 +348,83 @@ void main() {
     }
     await tester.pumpAndSettle();
     expect(find.text('BAND 14k'), findsOneWidget);
+  });
+
+  _libraryTest('background flush and cold launch retain the paused queue', (
+    tester,
+  ) async {
+    _portrait(tester);
+    final library = _LibraryStub(songCount: 3);
+    await tester.pumpWidget(MyTunesPod(library: Future.value(library)));
+    await tester.pumpAndSettle();
+    _wheel(tester).onStep!(1);
+    await tester.pump();
+    await tester.tap(find.text('SELECT'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PLAY'));
+    await tester.pumpAndSettle();
+    library.emit(index: 1, position: 18000);
+    await tester.pumpAndSettle();
+    expect(library.settings[PodSession.storageKey], isNull);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    final saved = PodSession.decode(library.settings[PodSession.storageKey])!;
+    expect(saved.queueIndex, 1);
+    expect(saved.positionMs, 18000);
+    expect(saved.trackIds, ['disc-1-track-2', 'disc-2-track-1']);
+    expect(saved.screen, PodScreen.nowPlaying);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    library.played = false;
+    library.settings[PodSession.storageKey] = PodSession(
+      queueIndex: saved.queueIndex,
+      positionMs: saved.positionMs,
+      trackIds: saved.trackIds,
+      screen: saved.screen,
+      lastForegroundMs: saved.lastForegroundMs,
+      theme: ThemeMode.dark,
+      volumePercent: 45,
+      equalizer: const EqualizerSettings(gains: [0, 2, -1, 3, 4]),
+    ).encode();
+    await tester.pumpWidget(MyTunesPod(library: Future.value(library)));
+    await tester.pumpAndSettle();
+    expect(_navigation(tester).screen, PodScreen.nowPlaying);
+    expect(find.text('Second track'), findsOneWidget);
+    expect(find.text('PLAY'), findsOneWidget);
+    expect(library.startIndex, 1);
+    expect(library.seeks, [18000]);
+    expect(library.volume, 0.45);
+    expect(library.gains, [0, 2, -1, 3, 4]);
+    expect(library.played, isFalse);
+    expect(MtTheme.of(tester.element(find.text('Second track'))), MtTheme.dark);
+  });
+
+  test('an older session opens the menu while preserving saved playback', () {
+    final then = DateTime(2026, 11, 21, 1);
+    final saved = PodSession(
+      screen: PodScreen.nowPlaying,
+      trackIds: ['track'],
+      positionMs: 5500,
+      lastForegroundMs: then.millisecondsSinceEpoch,
+    );
+    final now = then.add(const Duration(hours: 1, seconds: 1));
+    expect(saved.startScreen(now, hasQueue: true), PodScreen.menu);
+    expect(saved.trackIds, ['track']);
+    expect(saved.positionMs, 5500);
+  });
+}
+
+void _libraryTest(
+  String description,
+  Future<void> Function(WidgetTester) body,
+) {
+  testWidgets(description, (tester) async {
+    try {
+      await body(tester);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
   });
 }
 
@@ -373,6 +452,7 @@ class _LibraryStub implements DeviceLibrary {
   final seeks = <int>[];
   final transport = <String>[];
   final settings = <String, String>{};
+  final catalog = <String, DeviceTrack>{};
   List<int>? gains;
   bool? gapless;
   double? volumeCap;
@@ -415,7 +495,7 @@ class _LibraryStub implements DeviceLibrary {
   @override
   Future<List<DeviceTrack>> albumTracks({required AlbumId id}) async {
     playedAlbum = id;
-    return [
+    final tracks = [
       DeviceTrack(
         id: 'disc-1-track-2',
         title: 'First track',
@@ -438,7 +518,14 @@ class _LibraryStub implements DeviceLibrary {
         trackNumber: 1,
       ),
     ];
+    catalog.addEntries(tracks.map((track) => MapEntry(track.id, track)));
+    return tracks;
   }
+
+  @override
+  Future<List<DeviceTrack>> tracksByIds({required List<String> ids}) async => [
+    for (final id in ids) ?catalog[id],
+  ];
 
   @override
   Future<String?> artworkPath({

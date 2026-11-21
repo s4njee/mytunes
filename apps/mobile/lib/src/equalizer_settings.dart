@@ -31,8 +31,10 @@ class EqualizerSettings {
   final bool volumeLimited;
   final bool shuffleAlbums;
 
-  factory EqualizerSettings.decode(String? json) {
-    final data = json == null ? null : jsonDecode(json);
+  factory EqualizerSettings.decode(String? json) =>
+      EqualizerSettings.fromJson(json == null ? null : jsonDecode(json));
+
+  factory EqualizerSettings.fromJson(Object? data) {
     if (data is! Map<String, dynamic>) return const EqualizerSettings();
     final bands = data['gains'];
     return EqualizerSettings(
@@ -50,12 +52,12 @@ class EqualizerSettings {
     );
   }
 
-  String encode() => jsonEncode({
+  Map<String, Object> toJson() => {
     'gains': gains,
     'gapless': gapless,
     'volumeLimited': volumeLimited,
     'shuffleAlbums': shuffleAlbums,
-  });
+  };
 
   bool enabled(EqualizerOption option) => switch (option) {
     EqualizerOption.gapless => gapless,

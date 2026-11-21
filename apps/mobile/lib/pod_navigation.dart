@@ -9,10 +9,20 @@ enum PodScreen { menu, nowPlaying, albums, songs, queue, equalizer }
 
 /// Screen history inside the wheel surface, independent of Flutter routes.
 class PodNavigation extends StatefulWidget {
-  const PodNavigation({super.key, required this.display, required this.deck});
+  const PodNavigation({
+    super.key,
+    required this.display,
+    required this.deck,
+    this.initialScreen = PodScreen.menu,
+    this.initialSelection = 0,
+    this.onScreenChanged,
+  });
 
   final Widget Function(BuildContext, PodScreen, int selection) display;
   final Widget Function(BuildContext, PodNavigationState) deck;
+  final PodScreen initialScreen;
+  final int initialSelection;
+  final ValueChanged<PodScreen>? onScreenChanged;
 
   @override
   State<PodNavigation> createState() => PodNavigationState();
@@ -20,7 +30,11 @@ class PodNavigation extends StatefulWidget {
 
 class PodNavigationState extends State<PodNavigation>
     with SingleTickerProviderStateMixin {
-  final _screens = [_Screen(PodScreen.menu, 0)];
+  late final _screens = [
+    _Screen(PodScreen.menu, 0),
+    if (widget.initialScreen != PodScreen.menu)
+      _Screen(widget.initialScreen, widget.initialSelection),
+  ];
   late final _progress =
       AnimationController(
         vsync: this,
@@ -49,6 +63,7 @@ class PodNavigationState extends State<PodNavigation>
     final previous = _screens.last;
     _screens.add(_Screen(destination, selection));
     _slideFrom(previous, direction: 1);
+    widget.onScreenChanged?.call(screen);
   }
 
   void menu() {
@@ -57,6 +72,7 @@ class PodNavigationState extends State<PodNavigation>
     _screens.removeRange(1, _screens.length);
     _screens.first.selection = 0;
     _slideFrom(previous, direction: -1);
+    widget.onScreenChanged?.call(screen);
   }
 
   void _slideFrom(_Screen previous, {required double direction}) {

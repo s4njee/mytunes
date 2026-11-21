@@ -223,6 +223,18 @@ impl DeviceLibrary {
         )
     }
 
+    /// Read tracks in the requested order, retaining repeats and skipping removed IDs.
+    pub fn tracks_by_ids(&self, ids: Vec<String>) -> Result<Vec<DeviceTrack>> {
+        self.rows(
+            &format!(
+                "SELECT {TRACK_FIELDS} FROM json_each(?1) saved
+                 JOIN tracks t ON t.id = saved.value ORDER BY saved.key"
+            ),
+            [serde_json::to_string(&ids)?],
+            read_track,
+        )
+    }
+
     /// Return playlists and folders in their stored order.
     pub fn playlists(&self) -> Result<Vec<DevicePlaylist>> {
         self.rows(
@@ -414,6 +426,13 @@ mod tests {
                 .iter()
                 .map(|track| track.id.as_str())
                 .eq(["b", "a", "b"])
+        );
+        assert!(
+            library
+                .tracks_by_ids(vec!["b".into(), "missing".into(), "c".into(), "b".into()])?
+                .iter()
+                .map(|track| track.id.as_str())
+                .eq(["b", "c", "b"])
         );
 
         let small = library

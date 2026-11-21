@@ -72,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 367126140;
+  int get rustContentHash => -1214189506;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -200,6 +200,11 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<void> crateApiDeviceDeviceLibraryToggle({required DeviceLibrary that});
+
+  Future<List<DeviceTrack>> crateApiDeviceDeviceLibraryTracksByIds({
+    required DeviceLibrary that,
+    required List<String> ids,
+  });
 
   Future<Stream<PlaybackEvent>> crateApiPlaybackPlayerEventSubscriptionStream({
     required PlayerEventSubscription that,
@@ -1231,6 +1236,44 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<DeviceTrack>> crateApiDeviceDeviceLibraryTracksByIds({
+    required DeviceLibrary that,
+    required List<String> ids,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDeviceLibrary(
+            that,
+            serializer,
+          );
+          sse_encode_list_String(ids, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 28,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_device_track,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDeviceDeviceLibraryTracksByIdsConstMeta,
+        argValues: [that, ids],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDeviceDeviceLibraryTracksByIdsConstMeta =>
+      const TaskConstMeta(
+        debugName: "DeviceLibrary_tracks_by_ids",
+        argNames: ["that", "ids"],
+      );
+
+  @override
   Future<Stream<PlaybackEvent>> crateApiPlaybackPlayerEventSubscriptionStream({
     required PlayerEventSubscription that,
   }) async {
@@ -1247,7 +1290,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1275,7 +1318,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1300,7 +1343,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1328,7 +1371,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1353,7 +1396,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3011,6 +3054,12 @@ class DeviceLibraryImpl extends RustOpaque implements DeviceLibrary {
   /// Toggle between playback and pause.
   Future<void> toggle() =>
       RustLib.instance.api.crateApiDeviceDeviceLibraryToggle(that: this);
+
+  /// Read tracks in the requested order, retaining repeats and skipping removed IDs.
+  Future<List<DeviceTrack>> tracksByIds({required List<String> ids}) => RustLib
+      .instance
+      .api
+      .crateApiDeviceDeviceLibraryTracksByIds(that: this, ids: ids);
 }
 
 @sealed
