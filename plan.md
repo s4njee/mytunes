@@ -489,7 +489,8 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC1: The header row shows the accent eyebrow on the left and `text-40` metadata on the right (`N songs · M albums`) with the `rule` underline, per the handoff.
   - AC2: Menu rows: Now Playing · Albums (count) · Songs (count) · Queue (count) · Equalizer. 54 pt rows, dot + label + mono count. Selection styling differs by theme (dark: amber-14 tint, amber dot, white label, radius 10. Light: solid blue bar, white text, white dot, radius 5).
   - AC3: Step moves the selection, clamped (no wrap). Centre opens the destination. **Songs opens a full song list** (the prototype routes it to Queue. Treat the real Songs list as a reuse of the Queue row component, without the now-playing highlight).
-  - AC4: "Now Playing" is shown but disabled at `text-35` when nothing has ever been played (design gap: owner to confirm).
+  - AC4: "Now Playing" is shown but disabled at `text-35` when nothing has ever been played (owner confirmed, ADR-0030).
+  - _Status 2026-11-21: The seeded Android app showed live library and queue counts, clamped wheel selection, and both menu styles. Songs loaded a separate paged list and played the selected track. Playback enabled the first row in the same session. Native iOS, reference goldens, and hosted CI remain open._
 - [ ] **E6.S3 Albums grid.** As a user, I want to browse album art so that I can pick music visually.
   - AC1: 2-column grid, 14 pt gap, square tiles at radius 6. Real artwork (600 px thumb) or a placeholder colour tile from the theme's placeholder palette indexed by `album_index % 6`, with the uppercase mono caption. Titles and artists below.
   - AC2: The selected tile has a 2 pt accent ring and an accent title. The grid auto-scrolls to keep the selection visible (scroll animation ≤ 120 ms).
