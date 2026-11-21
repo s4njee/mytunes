@@ -28,7 +28,7 @@ class ClickWheel extends StatefulWidget {
 
   final PodScreen screen;
   final bool playing;
-  final String eqBand;
+  final String? eqBand;
 
   /// Called once for each detent with +1 clockwise or -1 counterclockwise.
   final ValueChanged<int>? onStep;
@@ -151,13 +151,14 @@ class _ClickWheelState extends State<ClickWheel> {
   String get _centreLabel => switch (widget.screen) {
     PodScreen.menu => 'SELECT',
     PodScreen.nowPlaying => widget.playing ? 'PAUSE' : 'PLAY',
-    PodScreen.equalizer => 'BAND ${widget.eqBand}',
+    PodScreen.equalizer =>
+      widget.eqBand == null ? 'TOGGLE' : 'BAND ${widget.eqBand}',
     _ => 'PLAY',
   };
 
   String get _hint => switch (widget.screen) {
     PodScreen.nowPlaying => 'DRAG RING TO SCRUB',
-    PodScreen.equalizer => 'DRAG RING TO SET GAIN',
+    PodScreen.equalizer when widget.eqBand != null => 'DRAG RING TO SET GAIN',
     _ => 'DRAG RING TO BROWSE',
   };
 

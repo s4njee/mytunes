@@ -510,8 +510,9 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
 - [ ] **E6.S6 Equalizer.** As a listener, I want to shape the sound with the wheel so that the EQ is fun to use.
   - AC1: 5 bands, a 190 pt band row, centre-anchored bars `height = |gain|/6 × 50%`, Hz labels and signed gains per handoff. The active band is the accent colour, others `accent-42`/`accent-half`.
   - AC2: Wheel step = ±1 dB on the active band, clamped ±6. Centre = next band (wrap). Changes are applied to `mt-audio` live (smoothed).
-  - AC3: Status rows: Gapless playback (ON) · Volume limit (OFF) · Shuffle album order (ON) defaults. **Design gap:** the wheel can't reach these rows in the handoff. v1 makes them reachable by stepping past band 5 (selection moves into the rows, and centre toggles). Confirm with the owner 🎨 design-gate.
+  - AC3: Status rows: Gapless playback (ON) · Volume limit (OFF) · Shuffle album order (ON) defaults. After band 5, centre enters the settings. The ring moves between rows and centre toggles the selected setting. A counterclockwise step from the first row returns to band 5 (owner confirmed, ADR-0031).
   - AC4: Default gains `[3, 1, -2, 4, 2]` (handoff). Persisted.
+  - _Status 2026-11-21. The owner-approved wheel controls, live DSP calls, three toggles, and SQLite settings are implemented. Flutter tests cover the limits and toggles. Both themes and a cold-launch gain restore passed on the Android emulator. Native iOS, reference goldens, and hosted CI remain open._
 - [ ] **E6.S7 Persistence & resume.** As a user, I want the app to resume where I left it so that it feels like a device, not an app.
   - AC1: Persist `trackIndex`/queue, position, volume, eqGains, settings and theme to `device.sqlite state` on every change (debounced 1 s) and on background 🧪.
   - AC2: Cold start restores the last screen (Menu if > 1 h since last use), queue and position, paused.
@@ -707,7 +708,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
 | R8 | Webview engine differences (WebKit vs Chromium) | CSS bugs on one OS | E2E on Linux and Windows. Manual macOS check per release. Conservative CSS. |
 | Q1 | Default theme: follow system (handoff) or always light 2a? | — | **Default: follow system.** Owner to confirm. |
 | Q2 | Is "Songs" a full song list (plan) or Queue (prototype)? | — | Plan assumes a full list. |
-| Q3 | How should the wheel reach the EQ status rows? | — | E6.S6 AC3 proposal. Owner to confirm. |
+| Q3 | ~~How should the wheel reach the EQ status rows?~~ | — | Owner approved pressing centre after band 5. See ADR-0031. |
 | Q4 | Desktop platforms priority order? | — | Assumed Linux → macOS → Windows. |
 | Q5 | ~~Project licence?~~ **Decided: `MIT OR Apache-2.0`** (owner, 2026-11-18). | — | Record in ADR-0006. Dependencies must be permissive or weak-copyleft (MPL-2.0 is fine, e.g. symphonia). Strong copyleft (GPL, AGPL) is not allowed. |
 

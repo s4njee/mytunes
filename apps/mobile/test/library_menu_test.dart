@@ -6,6 +6,7 @@ import 'package:mytunes_pod/albums_grid.dart';
 import 'package:mytunes_pod/click_wheel.dart';
 import 'package:mytunes_pod/main.dart';
 import 'package:mytunes_pod/pod_navigation.dart';
+import 'package:mytunes_pod/src/equalizer_settings.dart';
 import 'package:mytunes_pod/src/rust/api/device.dart';
 import 'package:mytunes_pod/src/rust/api/playback.dart';
 import 'package:mytunes_pod/theme/mt_theme.dart';
@@ -289,6 +290,63 @@ void main() {
     expect(find.text('First track'), findsOneWidget);
     expect(_navigation(tester).screen, PodScreen.nowPlaying);
   });
+
+  testWidgets('Equalizer changes live DSP and persists the wheel settings', (
+    tester,
+  ) async {
+    _portrait(tester);
+    final library = _LibraryStub(songCount: 3);
+    await tester.pumpWidget(MyTunesPod(library: Future.value(library)));
+    await tester.pumpAndSettle();
+    _wheel(tester).onStep!(1);
+    await tester.pump();
+    await tester.tap(find.text('SELECT'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PLAY'));
+    await tester.pumpAndSettle();
+    expect(library.gains, [3, 1, -2, 4, 2]);
+    expect(library.shuffle, PlaybackShuffle.albums);
+    await tester.tap(find.text('MENU'));
+    await tester.pumpAndSettle();
+    for (var i = 0; i < 4; i++) {
+      _wheel(tester).onStep!(1);
+    }
+    await tester.pump();
+    await tester.tap(find.text('SELECT'));
+    await tester.pumpAndSettle();
+    expect(find.text('BAND 60'), findsOneWidget);
+    for (var i = 0; i < 5; i++) {
+      _wheel(tester).onStep!(1);
+    }
+    await tester.pumpAndSettle();
+    expect(library.gains, [6, 1, -2, 4, 2]);
+    for (var i = 0; i < 5; i++) {
+      _wheel(tester).onCentre!();
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('TOGGLE'), findsOneWidget);
+    _wheel(tester).onCentre!();
+    _wheel(tester).onStep!(1);
+    _wheel(tester).onCentre!();
+    _wheel(tester).onStep!(1);
+    _wheel(tester).onCentre!();
+    await tester.pumpAndSettle();
+    expect(library.gapless, isFalse);
+    expect(library.volumeCap, 0.5);
+    expect(library.shuffle, PlaybackShuffle.off);
+    final saved = EqualizerSettings.decode(
+      library.settings[EqualizerSettings.storageKey],
+    );
+    expect(saved.gains, [6, 1, -2, 4, 2]);
+    expect(saved.volumeLimited, isTrue);
+    expect(saved.gapless, isFalse);
+    expect(saved.shuffleAlbums, isFalse);
+    for (var i = 0; i < 3; i++) {
+      _wheel(tester).onStep!(-1);
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('BAND 14k'), findsOneWidget);
+  });
 }
 
 void _portrait(WidgetTester tester) {
@@ -314,6 +372,11 @@ class _LibraryStub implements DeviceLibrary {
   final _events = StreamController<PlaybackEvent>.broadcast();
   final seeks = <int>[];
   final transport = <String>[];
+  final settings = <String, String>{};
+  List<int>? gains;
+  bool? gapless;
+  double? volumeCap;
+  PlaybackShuffle? shuffle;
   double? volume;
   int? startIndex;
   AlbumId? playedAlbum;
@@ -423,6 +486,32 @@ class _LibraryStub implements DeviceLibrary {
   @override
   Future<void> setVolume({required double volume}) async =>
       this.volume = volume;
+
+  @override
+  Future<void> setEq({required List<int> gains}) async => this.gains = gains;
+
+  @override
+  Future<void> setFlags({
+    required bool gapless,
+    required PlaybackSoundCheck soundCheck,
+    required double volumeLimit,
+  }) async {
+    this.gapless = gapless;
+    volumeCap = volumeLimit;
+  }
+
+  @override
+  Future<void> setShuffle({required PlaybackShuffle mode}) async =>
+      shuffle = mode;
+
+  @override
+  Future<String?> settingsGet({required String key}) async => settings[key];
+
+  @override
+  Future<void> settingsSet({
+    required String key,
+    required String valueJson,
+  }) async => settings[key] = valueJson;
 
   @override
   Future<void> seek({required BigInt positionMs}) async =>

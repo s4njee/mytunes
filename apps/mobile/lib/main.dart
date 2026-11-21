@@ -8,10 +8,12 @@ import 'package:path_provider/path_provider.dart';
 import 'albums_grid.dart';
 import 'click_wheel.dart';
 import 'dev_import.dart';
+import 'equalizer.dart';
 import 'library_menu.dart';
 import 'now_playing.dart';
 import 'pod_navigation.dart';
 import 'pod_shell.dart';
+import 'src/equalizer_settings.dart';
 import 'src/library_pages.dart';
 import 'src/player_events.dart';
 import 'src/rust/api/device.dart';
@@ -98,10 +100,87 @@ class _LibraryHomeState extends State<_LibraryHome> {
   StreamSubscription<PlaybackEvent>? _playerEvents;
   Future<void> _commands = Future.value();
   bool _volumeConfigured = false;
+  EqualizerSettings _equalizer = const EqualizerSettings();
+  EqualizerSettings? _appliedEqualizer;
+  late final _settingsReady = _loadEqualizer();
+  bool _equalizerReady = false;
+  bool _equalizerError = false;
   bool _hasPlayed = false;
   bool _playing = false;
   bool _startingPlayback = false;
   PodScreen? _playbackError;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_settingsReady);
+  }
+
+  Future<void> _loadEqualizer() async {
+    try {
+      final library = await widget.library;
+      final json = await library?.settingsGet(
+        key: EqualizerSettings.storageKey,
+      );
+      final saved = EqualizerSettings.decode(json);
+      if (mounted) _equalizer = saved;
+    } catch (_) {
+      // Use the defaults when the saved setting is unreadable.
+    }
+    if (mounted) setState(() => _equalizerReady = true);
+  }
+
+  void _equalizerStep(PodNavigationState navigation, int direction) {
+    final index = navigation.selection;
+    final bands = EqualizerSettings.frequencies.length;
+    if (index < bands) {
+      _changeEqualizer(_equalizer.adjust(index, direction));
+    } else {
+      navigation.select(
+        (index + direction).clamp(
+          bands - 1,
+          bands + EqualizerOption.values.length - 1,
+        ),
+      );
+    }
+  }
+
+  void _equalizerCentre(PodNavigationState navigation) {
+    final index = navigation.selection;
+    final bands = EqualizerSettings.frequencies.length;
+    if (index < bands) {
+      navigation.select(index + 1);
+    } else {
+      _changeEqualizer(
+        _equalizer.toggle(EqualizerOption.values[index - bands]),
+      );
+    }
+  }
+
+  void _changeEqualizer(EqualizerSettings settings) {
+    if (identical(settings, _equalizer)) return;
+    setState(() => _equalizer = settings);
+    unawaited(_saveEqualizer(settings));
+  }
+
+  Future<void> _saveEqualizer(EqualizerSettings settings) async {
+    try {
+      await _withTransport((library) async {
+        if (!identical(settings, _equalizer)) return;
+        if (_volumeConfigured) {
+          await settings.apply(library, previous: _appliedEqualizer);
+          _appliedEqualizer = settings;
+        }
+        await library.settingsSet(
+          key: EqualizerSettings.storageKey,
+          valueJson: settings.encode(),
+        );
+      });
+      if (mounted && _equalizerError) setState(() => _equalizerError = false);
+    } catch (_) {
+      if (mounted) setState(() => _equalizerError = true);
+    }
+  }
 
   Future<void> _importTracks(Future<DeviceLibrary> database) async {
     if (_importing) return;
@@ -147,6 +226,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
         _ => const <DeviceTrack>[],
       };
       if (tracks.isEmpty || !mounted) return;
+      await _settingsReady;
       final startIndex = origin == PodScreen.queue ? selection : 0;
       await _withTransport((library) async {
         if (!navigation.mounted || navigation.screen != origin) return;
@@ -156,6 +236,9 @@ class _LibraryHomeState extends State<_LibraryHome> {
           onError: (Object _) {},
         );
         if (!_volumeConfigured) {
+          final equalizer = _equalizer;
+          await equalizer.apply(library);
+          _appliedEqualizer = equalizer;
           await library.setVolume(
             volume: NowPlaying.defaultVolumePercent / 100,
           );
@@ -278,6 +361,8 @@ class _LibraryHomeState extends State<_LibraryHome> {
         return () => unawaited(_playSelection(navigation));
       case PodScreen.nowPlaying when _queue.isNotEmpty:
         return _toggle;
+      case PodScreen.equalizer when _equalizerReady:
+        return () => _equalizerCentre(navigation);
       default:
         return null;
     }
@@ -372,10 +457,10 @@ class _LibraryHomeState extends State<_LibraryHome> {
         ),
       ),
       PodScreen.nowPlaying => _nowPlaying(),
-      PodScreen.equalizer => const PodDisplay(
+      PodScreen.equalizer => PodDisplay(
         eyebrow: 'Equalizer',
-        metadata: 'Custom',
-        body: SizedBox.shrink(),
+        metadata: _equalizerError ? 'Could not apply settings' : 'Custom',
+        body: Equalizer(settings: _equalizer, selection: selection),
       ),
     };
   }
@@ -441,17 +526,24 @@ class _LibraryHomeState extends State<_LibraryHome> {
           deck: (context, navigation) {
             final count = _selectionCount(navigation.screen, counts);
             final now = navigation.screen == PodScreen.nowPlaying;
+            final equalizer = navigation.screen == PodScreen.equalizer;
             final hasQueue = _queue.isNotEmpty;
+            final bands = EqualizerSettings.frequencies;
             return ClickWheel(
               screen: navigation.screen,
               playing: _playing,
+              eqBand: equalizer && navigation.selection < bands.length
+                  ? bands[navigation.selection]
+                  : null,
               onMenu: navigation.menu,
               onCentre: _centreAction(navigation, counts),
               onPrevious: hasQueue ? () => _skip(forward: false) : null,
               onNext: hasQueue ? () => _skip(forward: true) : null,
               onPlayPause: hasQueue ? _toggle : null,
               onDragEnd: now ? _scrub.release : null,
-              onStep: now
+              onStep: equalizer && _equalizerReady
+                  ? (direction) => _equalizerStep(navigation, direction)
+                  : now
                   ? _scrubStep
                   : count == 0
                   ? null
