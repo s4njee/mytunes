@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'src/library_pages.dart';
+import 'src/playback_format.dart';
 import 'src/rust/api/device.dart';
 import 'theme/mt_theme.dart';
 import 'theme/tokens.g.dart';
@@ -109,7 +110,7 @@ class TrackRow extends StatelessWidget {
               ),
               if (ms != null)
                 Text(
-                  _trackTime(ms),
+                  trackTime(ms),
                   style: MtType.timecode.copyWith(color: secondary),
                 ),
             ],
@@ -117,10 +118,5 @@ class TrackRow extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _trackTime(int milliseconds) {
-    final seconds = Duration(milliseconds: milliseconds).inSeconds;
-    return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
   }
 }

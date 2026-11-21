@@ -18,6 +18,7 @@ class ClickWheel extends StatefulWidget {
     this.playing = false,
     this.eqBand = '60',
     this.onStep,
+    this.onDragEnd,
     this.onMenu,
     this.onPrevious,
     this.onNext,
@@ -31,6 +32,7 @@ class ClickWheel extends StatefulWidget {
 
   /// Called once for each detent with +1 clockwise or -1 counterclockwise.
   final ValueChanged<int>? onStep;
+  final VoidCallback? onDragEnd;
   final VoidCallback? onMenu;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
@@ -110,7 +112,25 @@ class _ClickWheelState extends State<ClickWheel> {
   void _finishPointer() {
     _pointer = null;
     _pressed = null;
-    if (_drag != null) setState(() => _drag = null);
+    if (_drag != null) {
+      setState(() => _drag = null);
+      widget.onDragEnd?.call();
+    }
+  }
+
+  @override
+  void didUpdateWidget(ClickWheel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.screen != widget.screen) {
+      _pointer = null;
+      _pressed = null;
+      if (_drag != null) {
+        _drag = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) oldWidget.onDragEnd?.call();
+        });
+      }
+    }
   }
 
   VoidCallback? _action(_Button button) => switch (button) {

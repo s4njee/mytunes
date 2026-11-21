@@ -502,6 +502,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC2: Wheel step = seek ±4 s, clamped. While scrubbing, the audio seeks on release or every 150 ms, whichever comes first (avoid seek storms). Centre toggles play/pause. ◀◀/▶▶ per the §3.4 rules.
   - AC3: Volume is shown as 18 bars reflecting app volume (default 0.62 per handoff). v1 has no wheel mode for volume. **Backlog:** a second centre press switches the wheel to volume mode, as on the real iPod (needs design).
   - AC4: Position updates at 4 Hz from player events. On track end, it advances to the next queue item.
+  - _Status 2026-11-21. Both Android themes showed cover art, format metadata, seek position, and the 62% volume default. The seeded Android player passed pause, wrap, restart, wheel seek, and automatic track advance. Flutter tests cover seek coalescing and release. Native iOS, reference goldens, and hosted CI remain open._
 - [ ] **E6.S5 Queue.** As a listener, I want to see what's up next so that I can jump around.
   - AC1: 48 pt rows: zero-padded mono track number, title + artist, duration (`m:ss`). The currently playing row's number and title are accent-coloured, independent of selection (light theme: white when selected, blue when playing and unselected).
   - AC2: On entry, the selection starts on the currently playing row. Centre plays the selected track and goes to Now Playing.

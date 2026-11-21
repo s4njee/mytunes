@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 
+import 'cover_art.dart';
 import 'src/library_pages.dart';
 import 'src/rust/api/device.dart';
 import 'theme/mt_theme.dart';
@@ -155,25 +155,7 @@ class _AlbumTile extends StatelessWidget {
     final theme = MtTheme.of(context);
     final colors = theme.colors;
     final dark = theme.brightness == Brightness.dark;
-    final palette = colors.placeholderArt;
-    final (fill, foreground) = palette[index % palette.length];
-    final placeholder = ColoredBox(
-      color: fill,
-      child: Align(
-        alignment: Alignment.bottomLeft,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Text(
-            album.id.title.toUpperCase(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: MtType.artCaption.copyWith(color: foreground),
-          ),
-        ),
-      ),
-    );
     final radius = BorderRadius.circular(MtRadius.albumTile);
-    final pixels = (width * 2).round();
     return Semantics(
       container: true,
       selected: selected,
@@ -201,26 +183,12 @@ class _AlbumTile extends StatelessWidget {
                     BoxShadow(color: colors.accent, spreadRadius: 2),
                 ],
               ),
-              child: ClipRRect(
-                borderRadius: radius,
-                child: ExcludeSemantics(
-                  child: FutureBuilder<String?>(
-                    future: artworkPath,
-                    builder: (context, snapshot) {
-                      final path = snapshot.data;
-                      if (path == null) return placeholder;
-                      return Image(
-                        image: ResizeImage(
-                          FileImage(File(path)),
-                          width: pixels,
-                          height: pixels,
-                        ),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stack) => placeholder,
-                      );
-                    },
-                  ),
-                ),
+              child: CoverArt(
+                radius: radius,
+                artworkPath: artworkPath,
+                caption: album.id.title,
+                paletteIndex: index,
+                width: width,
               ),
             ),
           ),

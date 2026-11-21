@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mytunes_pod/albums_grid.dart';
@@ -178,9 +180,62 @@ void main() {
     expect(library.playedAlbum?.title, 'Album 2');
     expect(library.loaded, ['disc-1-track-2', 'disc-2-track-1']);
     expect(library.played, isTrue);
-    expect(find.text('ALBUM 2'), findsOneWidget);
+    expect(find.text('ALBUM 2'), findsWidgets);
     expect(find.text('First track'), findsOneWidget);
     expect(_navigation(tester).screen, PodScreen.nowPlaying);
+  });
+
+  testWidgets('Now Playing renders snapshots and controls the Rust bridge', (
+    tester,
+  ) async {
+    _portrait(tester);
+    final library = _LibraryStub(songCount: 3);
+    await tester.pumpWidget(MyTunesPod(library: Future.value(library)));
+    await tester.pumpAndSettle();
+    _wheel(tester).onStep!(1);
+    await tester.pump();
+    await tester.tap(find.text('SELECT'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PLAY'));
+    await tester.pumpAndSettle();
+    expect(library.volume, 0.62);
+    library.emit(index: 0, position: 15000);
+    await tester.pumpAndSettle();
+
+    expect(find.text('First track'), findsOneWidget);
+    expect(find.text('FLAC · 24/96'), findsOneWidget);
+    expect(find.text('0:15'), findsOneWidget);
+    expect(find.text('-1:45'), findsOneWidget);
+    expect(find.text('VOL'), findsOneWidget);
+    expect(find.text('PAUSE'), findsOneWidget);
+
+    _wheel(tester).onStep!(1);
+    _wheel(tester).onStep!(1);
+    await tester.pump(const Duration(milliseconds: 149));
+    expect(find.text('0:23'), findsOneWidget);
+    expect(library.seeks, isEmpty);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(library.seeks, [23000]);
+
+    _wheel(tester).onStep!(-1);
+    _wheel(tester).onDragEnd!();
+    await tester.pump();
+    expect(library.seeks, [23000, 19000]);
+
+    await tester.tap(find.text('PAUSE'));
+    await tester.tap(find.text('◀◀'));
+    await tester.tap(find.text('▶▶'));
+    await tester.tap(find.text('▶ ❙❙'));
+    await tester.pumpAndSettle();
+    expect(library.transport, ['toggle', 'previous', 'next', 'toggle']);
+
+    _wheel(tester).onStep!(1);
+    library.emit(index: 1, position: 0);
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 151));
+    expect(find.text('Second track'), findsOneWidget);
+    expect(find.text('AAC · 256'), findsOneWidget);
+    expect(library.seeks, [23000, 19000]);
   });
 }
 
@@ -204,6 +259,10 @@ class _LibraryStub implements DeviceLibrary {
   final pages = <LibraryPage>[];
   final albumPages = <LibraryPage>[];
   final artworkRequests = <(String, ThumbnailSize)>[];
+  final _events = StreamController<PlaybackEvent>.broadcast();
+  final seeks = <int>[];
+  final transport = <String>[];
+  double? volume;
   AlbumId? playedAlbum;
   List<String> loaded = [];
   bool played = false;
@@ -245,6 +304,10 @@ class _LibraryStub implements DeviceLibrary {
         id: 'disc-1-track-2',
         title: 'First track',
         album: id.title,
+        codec: 'flac',
+        bitDepth: 24,
+        sampleRate: 96000,
+        durationMs: 120000,
         discNumber: 1,
         trackNumber: 2,
       ),
@@ -252,6 +315,9 @@ class _LibraryStub implements DeviceLibrary {
         id: 'disc-2-track-1',
         title: 'Second track',
         album: id.title,
+        codec: 'aac',
+        bitrate: 256,
+        durationMs: 60000,
         discNumber: 2,
         trackNumber: 1,
       ),
@@ -287,7 +353,7 @@ class _LibraryStub implements DeviceLibrary {
 
   @override
   Future<PlayerEventSubscription> subscribePlayer() async =>
-      _PlayerSubscription();
+      _PlayerSubscription(_events.stream);
 
   @override
   Future<void> loadQueue({
@@ -302,12 +368,47 @@ class _LibraryStub implements DeviceLibrary {
   Future<void> play() async => played = true;
 
   @override
+  Future<void> setVolume({required double volume}) async =>
+      this.volume = volume;
+
+  @override
+  Future<void> seek({required BigInt positionMs}) async =>
+      seeks.add(positionMs.toInt());
+
+  @override
+  Future<void> toggle() async => transport.add('toggle');
+
+  @override
+  Future<void> prev() async => transport.add('previous');
+
+  @override
+  Future<void> next() async => transport.add('next');
+
+  void emit({required int index, required int position}) => _events.add(
+    PlaybackEvent(
+      state: PlaybackState.playing,
+      positionMs: BigInt.from(position),
+      trackId: loaded[index],
+      queueIndex: index,
+      pass: BigInt.from(index + 1),
+      playedMs: BigInt.from(position),
+      volumePercent: 62,
+      ended: false,
+      skipped: false,
+    ),
+  );
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _PlayerSubscription implements PlayerEventSubscription {
+  _PlayerSubscription(this._events);
+
+  final Stream<PlaybackEvent> _events;
+
   @override
-  Future<Stream<PlaybackEvent>> stream() async => const Stream.empty();
+  Future<Stream<PlaybackEvent>> stream() async => _events;
 
   @override
   void dispose() {}

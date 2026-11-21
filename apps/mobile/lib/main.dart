@@ -9,6 +9,7 @@ import 'albums_grid.dart';
 import 'click_wheel.dart';
 import 'dev_import.dart';
 import 'library_menu.dart';
+import 'now_playing.dart';
 import 'pod_navigation.dart';
 import 'pod_shell.dart';
 import 'src/library_pages.dart';
@@ -16,6 +17,7 @@ import 'src/player_events.dart';
 import 'src/rust/api/device.dart';
 import 'src/rust/api/playback.dart';
 import 'src/rust/frb_generated.dart';
+import 'src/wheel_scrub.dart';
 import 'theme/font_licences.dart';
 import 'theme/mt_theme.dart';
 import 'theme/tokens.g.dart';
@@ -88,7 +90,14 @@ class _LibraryHomeState extends State<_LibraryHome> {
   String? _notice;
   List<DeviceTrack> _queue = const [];
   int? _queueIndex;
+  DeviceAlbum? _playingAlbum;
+  int _artPaletteIndex = 0;
+  final _artwork = <String, Future<String?>>{};
+  final _playback = ValueNotifier<PlaybackEvent?>(null);
+  late final _scrub = WheelScrub(_seekTo);
   StreamSubscription<PlaybackEvent>? _playerEvents;
+  Future<void> _commands = Future.value();
+  bool _volumeConfigured = false;
   bool _hasPlayed = false;
   bool _playing = false;
   bool _startingPlayback = false;
@@ -126,45 +135,52 @@ class _LibraryHomeState extends State<_LibraryHome> {
     final selection = navigation.selection;
     try {
       final library = await database;
+      final album = origin == PodScreen.albums
+          ? await _albums.itemAt(selection)
+          : null;
       final tracks = switch (origin) {
-        PodScreen.albums => await _albumTracks(library, selection),
+        PodScreen.albums when album != null => await library.albumTracks(
+          id: album.id,
+        ),
         PodScreen.songs => [?await _songs.itemAt(selection)],
         _ => const <DeviceTrack>[],
       };
-      if (tracks.isEmpty ||
-          !mounted ||
-          !navigation.mounted ||
-          navigation.screen != origin) {
-        return;
-      }
-      _playerEvents ??= library.playerEvents().listen((event) {
-        final playing = event.state == PlaybackState.playing;
-        if (mounted &&
-            (playing != _playing || event.queueIndex != _queueIndex)) {
-          setState(() {
-            _playing = playing;
-            _queueIndex = event.queueIndex;
-          });
+      if (tracks.isEmpty || !mounted) return;
+      await _withTransport((library) async {
+        if (!navigation.mounted || navigation.screen != origin) return;
+        _scrub.cancel();
+        _playerEvents ??= library.playerEvents().listen(
+          _receivePlayback,
+          onError: (Object _) {},
+        );
+        if (!_volumeConfigured) {
+          await library.setVolume(
+            volume: NowPlaying.defaultVolumePercent / 100,
+          );
+          _volumeConfigured = true;
         }
-      }, onError: (Object _) {});
-      await library.loadQueue(
-        trackIds: tracks.map((track) => track.id).toList(growable: false),
-        startIndex: 0,
-      );
-      if (!mounted) return;
-      setState(() {
-        _queue = tracks;
-        _queueIndex = 0;
+        await library.loadQueue(
+          trackIds: tracks.map((track) => track.id).toList(growable: false),
+          startIndex: 0,
+        );
+        if (!mounted) return;
+        setState(() {
+          _queue = tracks;
+          _queueIndex = 0;
+          _playingAlbum = album;
+          _artPaletteIndex = album == null ? 0 : selection;
+        });
+        await library.play();
+        if (mounted) {
+          setState(() {
+            _hasPlayed = true;
+            _playbackError = null;
+          });
+          if (navigation.mounted && navigation.screen == origin) {
+            navigation.push(PodScreen.nowPlaying);
+          }
+        }
       });
-      await library.play();
-      if (!mounted) return;
-      setState(() {
-        _hasPlayed = true;
-        _playbackError = null;
-      });
-      if (navigation.mounted && navigation.screen == origin) {
-        navigation.push(PodScreen.nowPlaying);
-      }
     } catch (_) {
       if (mounted) setState(() => _playbackError = origin);
     } finally {
@@ -172,12 +188,67 @@ class _LibraryHomeState extends State<_LibraryHome> {
     }
   }
 
-  Future<List<DeviceTrack>> _albumTracks(
-    DeviceLibrary library,
-    int selection,
-  ) async {
-    final album = await _albums.itemAt(selection);
-    return album == null ? const [] : library.albumTracks(id: album.id);
+  Future<void> _withTransport(Future<void> Function(DeviceLibrary) action) {
+    final next = _commands.then((_) async {
+      final library = await widget.library;
+      if (mounted && library != null) await action(library);
+    });
+    _commands = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return next;
+  }
+
+  (String?, int?, BigInt?) _trackPass(PlaybackEvent? event) =>
+      (event?.trackId, event?.queueIndex, event?.pass);
+
+  void _receivePlayback(PlaybackEvent event) {
+    if (!mounted) return;
+    if (_trackPass(_playback.value) != _trackPass(event)) _scrub.cancel();
+    _playback.value = event;
+    final playing = event.state == PlaybackState.playing;
+    if (playing != _playing || event.queueIndex != _queueIndex) {
+      setState(() {
+        _playing = playing;
+        _queueIndex = event.queueIndex;
+      });
+    }
+  }
+
+  Future<void> _control(Future<void> Function(DeviceLibrary) action) async {
+    try {
+      await _withTransport(action);
+      if (mounted && _playbackError == PodScreen.nowPlaying) {
+        setState(() => _playbackError = null);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _playbackError = PodScreen.nowPlaying);
+    }
+  }
+
+  void _toggle() => unawaited(_control((library) => library.toggle()));
+
+  void _skip({required bool forward}) {
+    _scrub.cancel();
+    unawaited(_control((library) => forward ? library.next() : library.prev()));
+  }
+
+  void _scrubStep(int direction) {
+    final event = _playback.value;
+    final track = _currentTrack;
+    if (event == null || track == null || event.trackId != track.id) return;
+    _scrub.step(
+      direction,
+      position: event.positionMs.toInt(),
+      duration: track.durationMs?.toInt() ?? 0,
+    );
+  }
+
+  Future<void> _seekTo(int position) {
+    final track = _trackPass(_playback.value);
+    return _control((library) async {
+      if (track == _trackPass(_playback.value)) {
+        await library.seek(positionMs: BigInt.from(position));
+      }
+    });
   }
 
   DeviceTrack? get _currentTrack {
@@ -197,6 +268,8 @@ class _LibraryHomeState extends State<_LibraryHome> {
       case PodScreen.songs when (counts?.songs ?? 0) > 0:
       case PodScreen.albums when (counts?.albums ?? 0) > 0:
         return () => unawaited(_playSelection(navigation));
+      case PodScreen.nowPlaying when _queue.isNotEmpty:
+        return _toggle;
       default:
         return null;
     }
@@ -289,11 +362,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
           ),
         ),
       ),
-      PodScreen.nowPlaying => PodDisplay(
-        eyebrow: _currentTrack?.album ?? 'Now Playing',
-        metadata: _currentTrack?.title ?? '',
-        body: const SizedBox.shrink(),
-      ),
+      PodScreen.nowPlaying => _nowPlaying(),
       PodScreen.equalizer => const PodDisplay(
         eyebrow: 'Equalizer',
         metadata: 'Custom',
@@ -302,9 +371,43 @@ class _LibraryHomeState extends State<_LibraryHome> {
     };
   }
 
+  Widget _nowPlaying() {
+    final track = _currentTrack;
+    final artworkId = track?.artworkId ?? _playingAlbum?.artworkId;
+    final year = _playingAlbum?.id.year;
+    final library = widget.library;
+    return PodDisplay(
+      eyebrow: track?.album ?? 'Now Playing',
+      metadata: _playbackError == PodScreen.nowPlaying
+          ? 'Could not control playback'
+          : (year?.toString() ?? ''),
+      body: track == null
+          ? const SizedBox.shrink()
+          : NowPlaying(
+              track: track,
+              artworkPath: artworkId == null || library == null
+                  ? null
+                  : _artwork.putIfAbsent(
+                      artworkId,
+                      () => library.then(
+                        (library) => library.artworkPath(
+                          id: artworkId,
+                          size: ThumbnailSize.small,
+                        ),
+                      ),
+                    ),
+              paletteIndex: _artPaletteIndex,
+              events: _playback,
+              scrubPreview: _scrub.preview,
+            ),
+    );
+  }
+
   @override
   void dispose() {
     unawaited(_playerEvents?.cancel());
+    _scrub.dispose();
+    _playback.dispose();
     super.dispose();
   }
 
@@ -328,12 +431,20 @@ class _LibraryHomeState extends State<_LibraryHome> {
               _display(screen, selection, counts, metadata),
           deck: (context, navigation) {
             final count = _selectionCount(navigation.screen, counts);
+            final now = navigation.screen == PodScreen.nowPlaying;
+            final hasQueue = _queue.isNotEmpty;
             return ClickWheel(
               screen: navigation.screen,
               playing: _playing,
               onMenu: navigation.menu,
               onCentre: _centreAction(navigation, counts),
-              onStep: count == 0
+              onPrevious: hasQueue ? () => _skip(forward: false) : null,
+              onNext: hasQueue ? () => _skip(forward: true) : null,
+              onPlayPause: hasQueue ? _toggle : null,
+              onDragEnd: now ? _scrub.release : null,
+              onStep: now
+                  ? _scrubStep
+                  : count == 0
                   ? null
                   : (direction) => navigation.select(
                       (navigation.selection + direction).clamp(0, count - 1),
