@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'click_wheel.dart';
 import 'dev_import.dart';
 import 'pod_navigation.dart';
 import 'pod_shell.dart';
@@ -125,7 +126,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
                   ),
           ),
           deck: (context, navigation) =>
-              const SizedBox(height: MtWheel.diameter),
+              ClickWheel(screen: navigation.screen, onMenu: navigation.menu),
         );
       },
     );

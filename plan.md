@@ -484,6 +484,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC5: Visual ring rotation follows the cumulative `wheelRotation`.
   - AC6: The hint text under the wheel is `DRAG RING TO BROWSE / SCRUB / SET GAIN` by context. It's `text-30` normally and accent-coloured while dragging.
   - AC7: The centre label reflects context: `SELECT` (Menu) · `PLAY` (Albums, Queue) · `PAUSE`/`PLAY` (Now Playing) · `BAND <hz>` (Equalizer). The `▶ ❙❙` label is static.
+  - _Status 2026-11-20: The wheel is in the app shell and MENU uses the screen stack. Flutter tests verify detent math, hit regions, rotation, labels, and haptic requests. Android emulator checks cover both themes and wheel input with test screens. The Menu rows and transport actions are covered by the following E6 stories. Native iOS haptic latency, reference goldens, and hosted CI remain open._
 - [ ] **E6.S2 Display header & Menu screen.** As a user, I want the root menu so that I can reach everything.
   - AC1: The header row shows the accent eyebrow on the left and `text-40` metadata on the right (`N songs · M albums`) with the `rule` underline, per the handoff.
   - AC2: Menu rows: Now Playing · Albums (count) · Songs (count) · Queue (count) · Equalizer. 54 pt rows, dot + label + mono count. Selection styling differs by theme (dark: amber-14 tint, amber dot, white label, radius 10. Light: solid blue bar, white text, white dot, radius 5).
