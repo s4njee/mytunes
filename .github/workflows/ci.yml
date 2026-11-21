@@ -234,3 +234,10 @@ jobs:
           cargo check --locked -p mt-audio --target aarch64-apple-ios
       - run: flutter pub get
       - run: flutter build ios --debug --no-codesign
+      - name: Archive the unsigned iPhone build for local signing
+        run: tar -czf "$RUNNER_TEMP/mytunes-pod-ios-unsigned.tar.gz" -C build/ios/iphoneos Runner.app
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mytunes-pod-ios-unsigned
+          path: ${{ runner.temp }}/mytunes-pod-ios-unsigned.tar.gz
+          if-no-files-found: error
