@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'pod_navigation.dart';
 import 'theme/mt_theme.dart';
 import 'theme/tokens.g.dart';
+import 'wheel_item_semantics.dart';
 import 'wheel_list.dart';
 
 enum LibraryMenuItem {
@@ -25,6 +26,8 @@ class LibraryMenu extends StatelessWidget {
     required this.songs,
     required this.queueLength,
     required this.hasPlayed,
+    required this.onSelect,
+    required this.onActivate,
   });
 
   final int selection;
@@ -32,6 +35,8 @@ class LibraryMenu extends StatelessWidget {
   final int? songs;
   final int queueLength;
   final bool hasPlayed;
+  final ValueChanged<int> onSelect;
+  final ValueChanged<int> onActivate;
 
   @override
   Widget build(BuildContext context) => WheelList(
@@ -51,6 +56,9 @@ class LibraryMenu extends StatelessWidget {
         },
         selected: index == selection,
         enabled: item != LibraryMenuItem.nowPlaying || hasPlayed,
+        index: index,
+        onSelect: () => onSelect(index),
+        onActivate: () => onActivate(index),
       );
     },
   );
@@ -62,12 +70,18 @@ class _MenuRow extends StatelessWidget {
     required this.count,
     required this.selected,
     required this.enabled,
+    required this.index,
+    required this.onSelect,
+    required this.onActivate,
   });
 
   final String label;
   final int? count;
   final bool selected;
   final bool enabled;
+  final int index;
+  final VoidCallback onSelect;
+  final VoidCallback onActivate;
 
   @override
   Widget build(BuildContext context) {
@@ -77,10 +91,14 @@ class _MenuRow extends StatelessWidget {
         ? MtRadius.selectedRowDark
         : MtRadius.selectedRowLight;
     final labelColor = selected ? colors.selectedRowText : colors.textMenu;
-    return Semantics(
-      container: true,
+    return WheelItemSemantics(
+      label: count == null ? label : '$label, $count',
+      number: index + 1,
+      total: LibraryMenuItem.values.length,
       selected: selected,
       enabled: enabled,
+      onSelect: onSelect,
+      onActivate: onActivate,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),

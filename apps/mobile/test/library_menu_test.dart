@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsAction, SemanticsRole;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -412,6 +413,58 @@ void main() {
     expect(saved.startScreen(now, hasQueue: true), PodScreen.menu);
     expect(saved.trackIds, ['track']);
     expect(saved.positionMs, 5500);
+  });
+
+  _libraryTest('screen-reader focus selects and activates library items', (
+    tester,
+  ) async {
+    _portrait(tester);
+    final library = _LibraryStub(songCount: 3, albumCount: 2);
+    await tester.pumpWidget(MyTunesPod(library: Future.value(library)));
+    await tester.pumpAndSettle();
+    final albumEntry = find.bySemanticsLabel('Albums, 2, 2 of 5');
+    var node = tester.getSemantics(albumEntry);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics && widget.properties.role == SemanticsRole.list,
+      ),
+      findsOneWidget,
+    );
+    expect(node.rect.height, greaterThanOrEqualTo(44));
+    node.owner!.performAction(
+      node.id,
+      SemanticsAction.didGainAccessibilityFocus,
+    );
+    await tester.pumpAndSettle();
+    expect(_navigation(tester).selection, 1);
+    node = tester.getSemantics(albumEntry);
+    node.owner!.performAction(node.id, SemanticsAction.tap);
+    await tester.pumpAndSettle();
+    expect(_navigation(tester).screen, PodScreen.albums);
+
+    node = tester.getSemantics(
+      find.bySemanticsLabel('Album 2, Test Artist, 2 of 2'),
+    );
+    node.owner!.performAction(node.id, SemanticsAction.tap);
+    await tester.pumpAndSettle();
+    expect(library.playedAlbum?.title, 'Album 2');
+    expect(_navigation(tester).screen, PodScreen.nowPlaying);
+    for (final label in ['Menu', 'Previous', 'Next', 'Play/Pause']) {
+      final control = tester.getSemantics(find.bySemanticsLabel(label));
+      expect(control.rect.height, greaterThanOrEqualTo(44));
+      expect(control.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+    }
+
+    library.emit(index: 0, position: 12000);
+    await tester.pumpAndSettle();
+    final position = tester.getSemantics(
+      find.bySemanticsLabel('Playback position'),
+    );
+    expect(position.rect.height, greaterThanOrEqualTo(44));
+    position.owner!.performAction(position.id, SemanticsAction.increase);
+    await tester.pumpAndSettle();
+    expect(library.seeks, [16000]);
   });
 }
 

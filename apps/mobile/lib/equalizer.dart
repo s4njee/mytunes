@@ -5,10 +5,20 @@ import 'theme/mt_theme.dart';
 import 'theme/tokens.g.dart';
 
 class Equalizer extends StatelessWidget {
-  const Equalizer({super.key, required this.settings, required this.selection});
+  const Equalizer({
+    super.key,
+    required this.settings,
+    required this.selection,
+    required this.onSelect,
+    required this.onAdjust,
+    required this.onToggle,
+  });
 
   final EqualizerSettings settings;
   final int selection;
+  final ValueChanged<int> onSelect;
+  final void Function(int band, int direction) onAdjust;
+  final ValueChanged<EqualizerOption> onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +38,8 @@ class Equalizer extends StatelessWidget {
                     frequency: frequencies[band],
                     gain: settings.gains[band],
                     selected: selection == band,
+                    onSelect: () => onSelect(band),
+                    onAdjust: (direction) => onAdjust(band, direction),
                   ),
                 ),
             ],
@@ -40,6 +52,8 @@ class Equalizer extends StatelessWidget {
             option: option,
             enabled: settings.enabled(option),
             selected: selection == frequencies.length + option.index,
+            onSelect: () => onSelect(frequencies.length + option.index),
+            onToggle: () => onToggle(option),
           ),
       ],
     );
@@ -51,11 +65,15 @@ class _Band extends StatelessWidget {
     required this.frequency,
     required this.gain,
     required this.selected,
+    required this.onSelect,
+    required this.onAdjust,
   });
 
   final String frequency;
   final int gain;
   final bool selected;
+  final VoidCallback onSelect;
+  final ValueChanged<int> onAdjust;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +84,12 @@ class _Band extends StatelessWidget {
       selected: selected,
       label: '$frequency hertz',
       value: '$signedGain decibels',
+      slider: true,
+      onDidGainAccessibilityFocus: onSelect,
+      onIncrease: gain < 6 ? () => onAdjust(1) : null,
+      onDecrease: gain > -6 ? () => onAdjust(-1) : null,
+      increasedValue: gain < 6 ? '${gain + 1} decibels' : null,
+      decreasedValue: gain > -6 ? '${gain - 1} decibels' : null,
       excludeSemantics: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -133,11 +157,15 @@ class _Option extends StatelessWidget {
     required this.option,
     required this.enabled,
     required this.selected,
+    required this.onSelect,
+    required this.onToggle,
   });
 
   final EqualizerOption option;
   final bool enabled;
   final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -146,8 +174,10 @@ class _Option extends StatelessWidget {
       container: true,
       selected: selected,
       toggled: enabled,
+      onDidGainAccessibilityFocus: onSelect,
+      onTap: onToggle,
       child: SizedBox(
-        height: MtSize.statusRow,
+        height: MtSize.statusRow + 2,
         child: Row(
           spacing: MtSpace.rowGap,
           children: [
@@ -164,7 +194,7 @@ class _Option extends StatelessWidget {
             Text(
               enabled ? 'ON' : 'OFF',
               style: MtType.meta.copyWith(
-                color: enabled ? colors.accent : colors.textQuaternary,
+                color: enabled ? colors.accent : colors.textCount,
               ),
             ),
           ],

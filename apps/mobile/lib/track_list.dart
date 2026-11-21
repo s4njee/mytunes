@@ -5,6 +5,7 @@ import 'src/playback_format.dart';
 import 'src/rust/api/device.dart';
 import 'theme/mt_theme.dart';
 import 'theme/tokens.g.dart';
+import 'wheel_item_semantics.dart';
 import 'wheel_list.dart';
 
 class SongsList extends StatelessWidget {
@@ -13,11 +14,15 @@ class SongsList extends StatelessWidget {
     required this.songs,
     required this.count,
     required this.selection,
+    required this.onSelect,
+    required this.onActivate,
   });
 
   final LibraryPages<DeviceTrack> songs;
   final int count;
   final int selection;
+  final ValueChanged<int> onSelect;
+  final ValueChanged<int> onActivate;
 
   @override
   Widget build(BuildContext context) => WheelList(
@@ -33,7 +38,10 @@ class SongsList extends StatelessWidget {
         return TrackRow(
           track: track,
           number: index + 1,
+          total: count,
           selected: selection == index,
+          onSelect: () => onSelect(index),
+          onActivate: () => onActivate(index),
         );
       },
     ),
@@ -46,14 +54,20 @@ class TrackRow extends StatelessWidget {
     super.key,
     required this.track,
     required this.number,
+    required this.total,
     required this.selected,
+    required this.onSelect,
+    required this.onActivate,
     this.current = false,
   });
 
   final DeviceTrack track;
   final int number;
+  final int total;
   final bool selected;
   final bool current;
+  final VoidCallback onSelect;
+  final VoidCallback onActivate;
 
   @override
   Widget build(BuildContext context) {
@@ -62,17 +76,25 @@ class TrackRow extends StatelessWidget {
     final lightSelection = selected && theme.brightness == Brightness.light;
     final secondary = lightSelection
         ? colors.selectedRowSecondary
-        : colors.textQuaternary;
+        : colors.textCount;
     final highlight = lightSelection
         ? colors.selectedRowText
         : current
         ? colors.accent
         : null;
     final ms = track.durationMs?.toInt();
-    return Semantics(
-      container: true,
+    return WheelItemSemantics(
+      label: [
+        track.title ?? 'Untitled',
+        ?track.artist,
+        if (ms != null) trackTime(ms),
+      ].join(', '),
+      number: number,
+      total: total,
       selected: selected,
       value: current ? 'Current track' : null,
+      onSelect: onSelect,
+      onActivate: onActivate,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(MtRadius.queueRow),

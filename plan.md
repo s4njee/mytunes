@@ -527,6 +527,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC1: Each list screen exposes a semantic list. Swipe navigation moves the selection. Double-tap activates. The wheel's buttons are labelled buttons ("Menu", "Previous", "Next", "Play/Pause", "Select") 🧪 (semantics tests).
   - AC2: Selection is announced ("Albums, 6, selected, 2 of 5").
   - AC3: Hit targets ≥ 44 pt. Contrast pairs from the handoff are respected (no meaningful text at ≤ .35 alpha).
+  - _Status 2026-11-21. Screen readers can focus and activate library, album, song, and queue items. Playback position and EQ bands expose adjustable actions. Flutter tests check selection, activation, and hit sizes. Android native accessibility actions selected and played an album with TalkBack active. Physical VoiceOver and TalkBack reviews remain open. See ADR-0032._
 
 **M3 exit:** on a physical iPhone and Android phone, with a dev-seeded library, all five screens in both themes pass golden tests. Background playback works. The owner does a "feel review" of the wheel and signs it off.
 

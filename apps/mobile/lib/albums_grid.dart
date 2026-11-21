@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsRole;
 
 import 'package:flutter/widgets.dart';
 
@@ -7,6 +8,7 @@ import 'src/library_pages.dart';
 import 'src/rust/api/device.dart';
 import 'theme/mt_theme.dart';
 import 'theme/tokens.g.dart';
+import 'wheel_item_semantics.dart';
 import 'wheel_list.dart';
 
 const _captionGap = 7.0;
@@ -19,12 +21,16 @@ class AlbumsGrid extends StatefulWidget {
     required this.albums,
     required this.count,
     required this.selection,
+    required this.onSelect,
+    required this.onActivate,
   });
 
   final Future<DeviceLibrary> library;
   final LibraryPages<DeviceAlbum> albums;
   final int count;
   final int selection;
+  final ValueChanged<int> onSelect;
+  final ValueChanged<int> onActivate;
 
   @override
   State<AlbumsGrid> createState() => _AlbumsGridState();
@@ -102,30 +108,37 @@ class _AlbumsGridState extends State<AlbumsGrid> {
         _selectionChanged = false;
         _revealSelection(height);
       }
-      return GridView.builder(
-        controller: _scroll,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(top: MtSpace.gridGap),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: _columns,
-          crossAxisSpacing: MtSpace.gridGap,
-          mainAxisSpacing: MtSpace.gridGap,
-          mainAxisExtent: height,
-        ),
-        itemCount: widget.count,
-        itemBuilder: (context, index) => FutureBuilder<List<DeviceAlbum>>(
-          future: widget.albums.pageFor(index),
-          builder: (context, snapshot) {
-            final album = widget.albums.itemIn(snapshot.data, index);
-            if (album == null) return const SizedBox.shrink();
-            return _AlbumTile(
-              album: album,
-              index: index,
-              selected: index == widget.selection,
-              artworkPath: _artworkFor(album.artworkId),
-              width: width,
-            );
-          },
+      return Semantics(
+        role: SemanticsRole.list,
+        explicitChildNodes: true,
+        child: GridView.builder(
+          controller: _scroll,
+          physics: wheelScrollPhysics(context),
+          padding: const EdgeInsets.only(top: MtSpace.gridGap),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _columns,
+            crossAxisSpacing: MtSpace.gridGap,
+            mainAxisSpacing: MtSpace.gridGap,
+            mainAxisExtent: height,
+          ),
+          itemCount: widget.count,
+          itemBuilder: (context, index) => FutureBuilder<List<DeviceAlbum>>(
+            future: widget.albums.pageFor(index),
+            builder: (context, snapshot) {
+              final album = widget.albums.itemIn(snapshot.data, index);
+              if (album == null) return const SizedBox.shrink();
+              return _AlbumTile(
+                album: album,
+                index: index,
+                count: widget.count,
+                selected: index == widget.selection,
+                artworkPath: _artworkFor(album.artworkId),
+                width: width,
+                onSelect: () => widget.onSelect(index),
+                onActivate: () => widget.onActivate(index),
+              );
+            },
+          ),
         ),
       );
     },
@@ -139,16 +152,22 @@ class _AlbumTile extends StatelessWidget {
   const _AlbumTile({
     required this.album,
     required this.index,
+    required this.count,
     required this.selected,
     required this.artworkPath,
     required this.width,
+    required this.onSelect,
+    required this.onActivate,
   });
 
   final DeviceAlbum album;
   final int index;
+  final int count;
   final bool selected;
   final Future<String?>? artworkPath;
   final double width;
+  final VoidCallback onSelect;
+  final VoidCallback onActivate;
 
   @override
   Widget build(BuildContext context) {
@@ -156,9 +175,13 @@ class _AlbumTile extends StatelessWidget {
     final colors = theme.colors;
     final dark = theme.brightness == Brightness.dark;
     final radius = BorderRadius.circular(MtRadius.albumTile);
-    return Semantics(
-      container: true,
+    return WheelItemSemantics(
+      label: [album.id.title, ?album.id.artist].join(', '),
+      number: index + 1,
+      total: count,
       selected: selected,
+      onSelect: onSelect,
+      onActivate: onActivate,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

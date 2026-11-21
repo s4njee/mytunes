@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show SemanticsRole;
 
 import 'package:flutter/widgets.dart';
 
@@ -13,6 +14,11 @@ double revealWheelSelection(
       .clamp(minOffset, top)
       .clamp(0.0, position.maxScrollExtent);
 }
+
+ScrollPhysics? wheelScrollPhysics(BuildContext context) =>
+    MediaQuery.accessibleNavigationOf(context)
+    ? null
+    : const NeverScrollableScrollPhysics();
 
 /// A fixed-height list that keeps the wheel selection visible.
 class WheelList extends StatefulWidget {
@@ -71,12 +77,16 @@ class _WheelListState extends State<WheelList> {
   }
 
   @override
-  Widget build(BuildContext context) => ListView.builder(
-    controller: _controller,
-    physics: const NeverScrollableScrollPhysics(),
-    padding: EdgeInsets.only(top: widget.topPadding),
-    itemExtent: widget.rowHeight,
-    itemCount: widget.count,
-    itemBuilder: widget.itemBuilder,
+  Widget build(BuildContext context) => Semantics(
+    role: SemanticsRole.list,
+    explicitChildNodes: true,
+    child: ListView.builder(
+      controller: _controller,
+      physics: wheelScrollPhysics(context),
+      padding: EdgeInsets.only(top: widget.topPadding),
+      itemExtent: widget.rowHeight,
+      itemCount: widget.count,
+      itemBuilder: widget.itemBuilder,
+    ),
   );
 }

@@ -591,12 +591,24 @@ class _LibraryHomeState extends State<_LibraryHome>
       };
 
   Widget _display(
+    BuildContext context,
     PodScreen screen,
     int selection,
     LibraryCounts? counts,
     String libraryMetadata,
   ) {
     final library = widget.library;
+    final navigation = context.findAncestorStateOfType<PodNavigationState>()!;
+    void select(int index) {
+      if (navigation.screen == screen) navigation.select(index);
+    }
+
+    void activate(int index) {
+      if (navigation.screen != screen) return;
+      select(index);
+      _centreAction(navigation, counts)?.call();
+    }
+
     return switch (screen) {
       PodScreen.menu => PodDisplay(
         eyebrow: 'Library',
@@ -614,6 +626,8 @@ class _LibraryHomeState extends State<_LibraryHome>
                 songs: counts?.songs ?? (library == null ? 0 : null),
                 queueLength: _queue.length,
                 hasPlayed: _hasPlayed,
+                onSelect: select,
+                onActivate: activate,
               ),
             ),
             if (_notice case final notice?)
@@ -640,6 +654,8 @@ class _LibraryHomeState extends State<_LibraryHome>
                 albums: _albums,
                 count: counts?.albums ?? 0,
                 selection: selection,
+                onSelect: select,
+                onActivate: activate,
               ),
       ),
       PodScreen.songs => PodDisplay(
@@ -651,6 +667,8 @@ class _LibraryHomeState extends State<_LibraryHome>
           songs: _songs,
           count: counts?.songs ?? 0,
           selection: selection,
+          onSelect: select,
+          onActivate: activate,
         ),
       ),
       PodScreen.queue => PodDisplay(
@@ -664,8 +682,11 @@ class _LibraryHomeState extends State<_LibraryHome>
           itemBuilder: (context, index) => TrackRow(
             track: _queue[index],
             number: index + 1,
+            total: _queue.length,
             selected: index == selection,
             current: index == _queueIndex,
+            onSelect: () => select(index),
+            onActivate: () => activate(index),
           ),
         ),
       ),
@@ -673,7 +694,19 @@ class _LibraryHomeState extends State<_LibraryHome>
       PodScreen.equalizer => PodDisplay(
         eyebrow: 'Equalizer',
         metadata: _equalizerError ? 'Could not apply settings' : 'Custom',
-        body: Equalizer(settings: _equalizer, selection: selection),
+        body: Equalizer(
+          settings: _equalizer,
+          selection: selection,
+          onSelect: select,
+          onAdjust: (band, direction) {
+            select(band);
+            _changeEqualizer(_equalizer.adjust(band, direction));
+          },
+          onToggle: (option) {
+            select(EqualizerSettings.frequencies.length + option.index);
+            _changeEqualizer(_equalizer.toggle(option));
+          },
+        ),
       ),
     };
   }
@@ -708,6 +741,10 @@ class _LibraryHomeState extends State<_LibraryHome>
               paletteIndex: _artPaletteIndex,
               events: _playback,
               scrubPreview: _scrub.preview,
+              onSeekStep: (direction) {
+                _scrubStep(direction);
+                _scrub.release();
+              },
             ),
     );
   }
@@ -756,7 +793,7 @@ class _LibraryHomeState extends State<_LibraryHome>
             _scheduleSave();
           },
           display: (context, screen, selection) =>
-              _display(screen, selection, counts, metadata),
+              _display(context, screen, selection, counts, metadata),
           deck: (context, navigation) {
             final count = _selectionCount(navigation.screen, counts);
             final now = navigation.screen == PodScreen.nowPlaying;

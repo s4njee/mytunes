@@ -16,6 +16,7 @@ class NowPlaying extends StatelessWidget {
     required this.paletteIndex,
     required this.events,
     required this.scrubPreview,
+    required this.onSeekStep,
   });
 
   final DeviceTrack track;
@@ -23,6 +24,7 @@ class NowPlaying extends StatelessWidget {
   final int paletteIndex;
   final ValueListenable<PlaybackEvent?> events;
   final ValueListenable<int?> scrubPreview;
+  final ValueChanged<int> onSeekStep;
 
   /// The mobile engine starts at the handoff's 62% volume.
   static const defaultVolumePercent = 62;
@@ -44,7 +46,7 @@ class NowPlaying extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: MtSpace.nowPlayingGap,
+              spacing: MtSpace.nowPlayingGap - 10,
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -129,6 +131,7 @@ class NowPlaying extends StatelessWidget {
                     return _Progress(
                       position: scrubPreview.value ?? position,
                       duration: track.durationMs?.toInt() ?? 0,
+                      onSeekStep: onSeekStep,
                     );
                   },
                 ),
@@ -148,10 +151,15 @@ class NowPlaying extends StatelessWidget {
 }
 
 class _Progress extends StatelessWidget {
-  const _Progress({required this.position, required this.duration});
+  const _Progress({
+    required this.position,
+    required this.duration,
+    required this.onSeekStep,
+  });
 
   final int position;
   final int duration;
+  final ValueChanged<int> onSeekStep;
 
   @override
   Widget build(BuildContext context) {
@@ -159,32 +167,53 @@ class _Progress extends StatelessWidget {
     final known = duration > 0;
     final elapsed = known ? position.clamp(0, duration) : position;
     final clock = MtType.timecode.copyWith(color: colors.textTimecode);
-    return Column(
-      spacing: 9,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(MtRadius.progress),
-          child: SizedBox(
-            height: MtSize.progressTrack,
-            width: double.infinity,
-            child: ColoredBox(
-              color: colors.trackInactive,
-              child: FractionallySizedBox(
-                widthFactor: known ? elapsed / duration : 0,
-                alignment: Alignment.centerLeft,
-                child: ColoredBox(color: colors.accent),
+    return Semantics(
+      container: true,
+      excludeSemantics: true,
+      slider: known,
+      label: 'Playback position',
+      value: known
+          ? '${trackTime(elapsed)} elapsed, ${trackTime(duration - elapsed)} remaining'
+          : '${trackTime(elapsed)} elapsed',
+      onIncrease: known && elapsed < duration - 1 ? () => onSeekStep(1) : null,
+      onDecrease: known && elapsed > 0 ? () => onSeekStep(-1) : null,
+      increasedValue: known && elapsed < duration - 1
+          ? trackTime((elapsed + 4000).clamp(0, duration - 1))
+          : null,
+      decreasedValue: known && elapsed > 0
+          ? trackTime((elapsed - 4000).clamp(0, duration - 1))
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Column(
+          spacing: 9,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(MtRadius.progress),
+              child: SizedBox(
+                height: MtSize.progressTrack,
+                width: double.infinity,
+                child: ColoredBox(
+                  color: colors.trackInactive,
+                  child: FractionallySizedBox(
+                    widthFactor: known ? elapsed / duration : 0,
+                    alignment: Alignment.centerLeft,
+                    child: ColoredBox(color: colors.accent),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(trackTime(elapsed), style: clock),
-            if (known) Text('-${trackTime(duration - elapsed)}', style: clock),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(trackTime(elapsed), style: clock),
+                if (known)
+                  Text('-${trackTime(duration - elapsed)}', style: clock),
+              ],
+            ),
           ],
         ),
-      ],
+      ),
     );
   }
 }

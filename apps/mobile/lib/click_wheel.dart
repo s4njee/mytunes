@@ -208,7 +208,7 @@ class _ClickWheelState extends State<ClickWheel> {
                   ),
                   _button(
                     _Button.menu,
-                    'MENU',
+                    'Menu',
                     Align(
                       alignment: Alignment.topCenter,
                       child: Padding(
@@ -226,24 +226,24 @@ class _ClickWheelState extends State<ClickWheel> {
                   ),
                   _button(
                     _Button.previous,
-                    'Previous track',
+                    'Previous',
                     Center(child: Text('◀◀', style: glyph)),
                   ),
                   _button(
                     _Button.next,
-                    'Next track',
+                    'Next',
                     Center(child: Text('▶▶', style: glyph)),
                   ),
                   _button(
                     _Button.playPause,
-                    'Play or pause',
+                    'Play/Pause',
                     Center(
                       child: Text('▶ ❙❙', style: glyph.copyWith(fontSize: 14)),
                     ),
                   ),
                   _button(
                     _Button.centre,
-                    _centreLabel,
+                    widget.screen == PodScreen.menu ? 'Select' : _centreLabel,
                     DecoratedBox(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
