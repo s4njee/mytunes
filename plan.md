@@ -496,6 +496,7 @@ _Implementation complete as of 2026-11-20. The Linux desktop works through impor
   - AC2: The selected tile has a 2 pt accent ring and an accent title. The grid auto-scrolls to keep the selection visible (scroll animation ≤ 120 ms).
   - AC3: Centre plays the album from track 1 (queue = album tracks in disc/track order) and goes to Now Playing.
   - AC4: 500 albums scroll smoothly: artwork decode off the main isolate, cached via `ResizeImage` at 2× tile size.
+  - _Status 2026-11-21. Both Android themes displayed embedded cover art and the fallback tile. PLAY started the first album track and loaded the ordered queue. A profile build scrolled through 500 albums on the Android emulator. Across 761 frames, p95 build and raster times were 1.19 ms and 1.16 ms. Native iOS, reference goldens, and hosted CI remain open._
 - [ ] **E6.S4 Now Playing.** As a listener, I want the Now Playing screen so that I can see and control what's playing.
   - AC1: Layout per handoff: 140×140 art (radius 8) + title/artist + format badge (`FLAC · 24/96`, `AAC · 256`, `MP3 · 320`, `ALAC · 16/44`), progress track 3 pt with elapsed / `-remaining` in mono, VOL label + 18 bars (5/7/9 px alternating).
   - AC2: Wheel step = seek ±4 s, clamped. While scrubbing, the audio seeks on release or every 150 ms, whichever comes first (avoid seek storms). Centre toggles play/pause. ◀◀/▶▶ per the §3.4 rules.

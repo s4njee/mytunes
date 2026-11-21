@@ -1,4 +1,18 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
+
+/// The smallest scroll that brings the given row or tile into view.
+double revealWheelSelection(
+  ScrollPosition position,
+  double top,
+  double bottom,
+) {
+  final minOffset = math.min(top, bottom - position.viewportDimension);
+  return position.pixels
+      .clamp(minOffset, top)
+      .clamp(0.0, position.maxScrollExtent);
+}
 
 /// A fixed-height list that keeps the wheel selection visible.
 class WheelList extends StatefulWidget {
@@ -45,12 +59,7 @@ class _WheelListState extends State<WheelList> {
       final position = _controller.position;
       final top = widget.topPadding + widget.selection * widget.rowHeight;
       final bottom = top + widget.rowHeight;
-      final target =
-          position.pixels < top &&
-              bottom > position.pixels + position.viewportDimension
-          ? bottom - position.viewportDimension
-          : position.pixels.clamp(0.0, top);
-      final offset = target.clamp(0.0, position.maxScrollExtent);
+      final offset = revealWheelSelection(position, top, bottom);
       if (offset != position.pixels) _controller.jumpTo(offset);
     });
   }

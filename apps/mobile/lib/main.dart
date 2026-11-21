@@ -5,11 +5,13 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'albums_grid.dart';
 import 'click_wheel.dart';
 import 'dev_import.dart';
 import 'library_menu.dart';
 import 'pod_navigation.dart';
 import 'pod_shell.dart';
+import 'src/library_pages.dart';
 import 'src/player_events.dart';
 import 'src/rust/api/device.dart';
 import 'src/rust/api/playback.dart';
@@ -76,9 +78,16 @@ class _LibraryHomeState extends State<_LibraryHome> {
   late Future<LibraryCounts>? _counts = widget.library?.then(
     (library) => library.libraryCounts(),
   );
+  late final _songs = LibraryPages<DeviceTrack>(
+    (page) async => (await widget.library!).songs(page: page),
+  );
+  late final _albums = LibraryPages<DeviceAlbum>(
+    (page) async => (await widget.library!).albums(page: page),
+  );
   bool _importing = false;
   String? _notice;
   List<DeviceTrack> _queue = const [];
+  int? _queueIndex;
   StreamSubscription<PlaybackEvent>? _playerEvents;
   bool _hasPlayed = false;
   bool _playing = false;
@@ -96,6 +105,8 @@ class _LibraryHomeState extends State<_LibraryHome> {
       final notice = await importPickedTracks(library);
       if (notice != null && mounted) {
         setState(() {
+          _songs.clear();
+          _albums.clear();
           _counts = library.libraryCounts();
           _notice = notice;
         });
@@ -107,45 +118,71 @@ class _LibraryHomeState extends State<_LibraryHome> {
     }
   }
 
-  Future<void> _playSong(PodNavigationState navigation) async {
+  Future<void> _playSelection(PodNavigationState navigation) async {
     final database = widget.library;
     if (database == null || _startingPlayback) return;
     _startingPlayback = true;
+    final origin = navigation.screen;
     final selection = navigation.selection;
     try {
       final library = await database;
-      final tracks = await library.songs(
-        page: LibraryPage(offset: selection, limit: 1),
-      );
+      final tracks = switch (origin) {
+        PodScreen.albums => await _albumTracks(library, selection),
+        PodScreen.songs => [?await _songs.itemAt(selection)],
+        _ => const <DeviceTrack>[],
+      };
       if (tracks.isEmpty ||
           !mounted ||
           !navigation.mounted ||
-          navigation.screen != PodScreen.songs) {
+          navigation.screen != origin) {
         return;
       }
       _playerEvents ??= library.playerEvents().listen((event) {
         final playing = event.state == PlaybackState.playing;
-        if (mounted && playing != _playing) {
-          setState(() => _playing = playing);
+        if (mounted &&
+            (playing != _playing || event.queueIndex != _queueIndex)) {
+          setState(() {
+            _playing = playing;
+            _queueIndex = event.queueIndex;
+          });
         }
       }, onError: (Object _) {});
-      await library.loadQueue(trackIds: [tracks.single.id], startIndex: 0);
+      await library.loadQueue(
+        trackIds: tracks.map((track) => track.id).toList(growable: false),
+        startIndex: 0,
+      );
       if (!mounted) return;
-      setState(() => _queue = tracks);
+      setState(() {
+        _queue = tracks;
+        _queueIndex = 0;
+      });
       await library.play();
       if (!mounted) return;
       setState(() {
         _hasPlayed = true;
         _playbackError = null;
       });
-      if (navigation.mounted && navigation.screen == PodScreen.songs) {
+      if (navigation.mounted && navigation.screen == origin) {
         navigation.push(PodScreen.nowPlaying);
       }
     } catch (_) {
-      if (mounted) setState(() => _playbackError = PodScreen.songs);
+      if (mounted) setState(() => _playbackError = origin);
     } finally {
       _startingPlayback = false;
     }
+  }
+
+  Future<List<DeviceTrack>> _albumTracks(
+    DeviceLibrary library,
+    int selection,
+  ) async {
+    final album = await _albums.itemAt(selection);
+    return album == null ? const [] : library.albumTracks(id: album.id);
+  }
+
+  DeviceTrack? get _currentTrack {
+    final index = _queueIndex ?? 0;
+    return index < _queue.length ? _queue[index] : null;
   }
 
   VoidCallback? _centreAction(
@@ -158,7 +195,8 @@ class _LibraryHomeState extends State<_LibraryHome> {
         if (item == LibraryMenuItem.nowPlaying && !_hasPlayed) return null;
         return () => navigation.push(item.destination);
       case PodScreen.songs when (counts?.songs ?? 0) > 0:
-        return () => unawaited(_playSong(navigation));
+      case PodScreen.albums when (counts?.albums ?? 0) > 0:
+        return () => unawaited(_playSelection(navigation));
       default:
         return null;
     }
@@ -167,6 +205,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
   int _selectionCount(PodScreen screen, LibraryCounts? counts) =>
       switch (screen) {
         PodScreen.menu => LibraryMenuItem.values.length,
+        PodScreen.albums => counts?.albums ?? 0,
         PodScreen.songs => counts?.songs ?? 0,
         PodScreen.queue => _queue.length,
         _ => 0,
@@ -212,8 +251,17 @@ class _LibraryHomeState extends State<_LibraryHome> {
       ),
       PodScreen.albums => PodDisplay(
         eyebrow: 'Albums',
-        metadata: _countLabel(counts?.albums ?? 0, 'album'),
-        body: const SizedBox.shrink(),
+        metadata: _playbackError == screen
+            ? 'Could not play album'
+            : _countLabel(counts?.albums ?? 0, 'album'),
+        body: library == null
+            ? const SizedBox.shrink()
+            : AlbumsGrid(
+                library: library,
+                albums: _albums,
+                count: counts?.albums ?? 0,
+                selection: selection,
+              ),
       ),
       PodScreen.songs => PodDisplay(
         eyebrow: 'Songs',
@@ -221,7 +269,7 @@ class _LibraryHomeState extends State<_LibraryHome> {
             ? 'Could not play song'
             : _countLabel(counts?.songs ?? 0, 'song'),
         body: SongsList(
-          library: library,
+          songs: _songs,
           count: counts?.songs ?? 0,
           selection: selection,
         ),
@@ -242,8 +290,8 @@ class _LibraryHomeState extends State<_LibraryHome> {
         ),
       ),
       PodScreen.nowPlaying => PodDisplay(
-        eyebrow: _queue.firstOrNull?.album ?? 'Now Playing',
-        metadata: _queue.firstOrNull?.title ?? '',
+        eyebrow: _currentTrack?.album ?? 'Now Playing',
+        metadata: _currentTrack?.title ?? '',
         body: const SizedBox.shrink(),
       ),
       PodScreen.equalizer => const PodDisplay(

@@ -1,71 +1,41 @@
 import 'package:flutter/widgets.dart';
 
+import 'src/library_pages.dart';
 import 'src/rust/api/device.dart';
 import 'theme/mt_theme.dart';
 import 'theme/tokens.g.dart';
 import 'wheel_list.dart';
 
-class SongsList extends StatefulWidget {
+class SongsList extends StatelessWidget {
   const SongsList({
     super.key,
-    required this.library,
+    required this.songs,
     required this.count,
     required this.selection,
   });
 
-  final Future<DeviceLibrary>? library;
+  final LibraryPages<DeviceTrack> songs;
   final int count;
   final int selection;
 
   @override
-  State<SongsList> createState() => _SongsListState();
-}
-
-class _SongsListState extends State<SongsList> {
-  static const _pageSize = 64;
-  final _pages = <int, Future<List<DeviceTrack>>>{};
-
-  @override
-  void didUpdateWidget(SongsList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.library != oldWidget.library ||
-        widget.count != oldWidget.count) {
-      _pages.clear();
-    }
-  }
-
-  @override
   Widget build(BuildContext context) => WheelList(
-    count: widget.library == null ? 0 : widget.count,
-    selection: widget.selection,
+    count: count,
+    selection: selection,
     rowHeight: MtSize.queueRow,
     topPadding: 8,
-    itemBuilder: (context, index) {
-      final offset = index ~/ _pageSize * _pageSize;
-      final page = _pages.putIfAbsent(
-        offset,
-        () => widget.library!.then(
-          (library) => library.songs(
-            page: LibraryPage(offset: offset, limit: _pageSize),
-          ),
-        ),
-      );
-      return FutureBuilder<List<DeviceTrack>>(
-        future: page,
-        builder: (context, snapshot) {
-          final tracks = snapshot.data;
-          final pageIndex = index - offset;
-          if (tracks == null || pageIndex >= tracks.length) {
-            return const SizedBox.shrink();
-          }
-          return TrackRow(
-            track: tracks[pageIndex],
-            number: index + 1,
-            selected: widget.selection == index,
-          );
-        },
-      );
-    },
+    itemBuilder: (context, index) => FutureBuilder<List<DeviceTrack>>(
+      future: songs.pageFor(index),
+      builder: (context, snapshot) {
+        final track = songs.itemIn(snapshot.data, index);
+        if (track == null) return const SizedBox.shrink();
+        return TrackRow(
+          track: track,
+          number: index + 1,
+          selected: selection == index,
+        );
+      },
+    ),
   );
 }
 

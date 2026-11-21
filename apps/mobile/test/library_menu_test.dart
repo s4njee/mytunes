@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mytunes_pod/albums_grid.dart';
 import 'package:mytunes_pod/click_wheel.dart';
 import 'package:mytunes_pod/main.dart';
 import 'package:mytunes_pod/pod_navigation.dart';
@@ -126,6 +127,61 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('NOW PLAYING'), findsOneWidget);
   });
+  testWidgets('Albums browses 500 tiles and reveals the wheel selection', (
+    tester,
+  ) async {
+    _portrait(tester);
+    final library = _LibraryStub(songCount: 500, albumCount: 500);
+    await tester.pumpWidget(MyTunesPod(library: Future.value(library)));
+    await tester.pumpAndSettle();
+    _wheel(tester).onStep!(1);
+    await tester.pump();
+    await tester.tap(find.text('SELECT'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlbumsGrid), findsOneWidget);
+    expect(find.text('500 albums'), findsOneWidget);
+    expect(library.albumPages.map((page) => page.offset), [0]);
+    expect(library.artworkRequests, [('cover-0', ThumbnailSize.large)]);
+    final first = tester.getTopLeft(find.text('Album 1'));
+    final second = tester.getTopLeft(find.text('Album 2'));
+    expect(second.dx - first.dx, 172 + MtSpace.gridGap);
+    expect(second.dy, first.dy);
+
+    for (var index = 0; index < 501; index++) {
+      _wheel(tester).onStep!(1);
+    }
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    await tester.pumpAndSettle();
+    expect(_navigation(tester).selection, 499);
+    expect(find.text('Album 500').hitTestable(), findsOneWidget);
+    expect(library.albumPages.last.offset, 448);
+    expect(library.albumPages.length, lessThan(8));
+  });
+
+  testWidgets('SELECT plays an album starting with its first ordered track', (
+    tester,
+  ) async {
+    _portrait(tester);
+    final library = _LibraryStub(songCount: 3);
+    await tester.pumpWidget(MyTunesPod(library: Future.value(library)));
+    await tester.pumpAndSettle();
+    _wheel(tester).onStep!(1);
+    await tester.pump();
+    await tester.tap(find.text('SELECT'));
+    await tester.pumpAndSettle();
+    _wheel(tester).onStep!(1);
+    await tester.pump();
+    await tester.tap(find.text('PLAY'));
+    await tester.pumpAndSettle();
+    expect(library.playedAlbum?.title, 'Album 2');
+    expect(library.loaded, ['disc-1-track-2', 'disc-2-track-1']);
+    expect(library.played, isTrue);
+    expect(find.text('ALBUM 2'), findsOneWidget);
+    expect(find.text('First track'), findsOneWidget);
+    expect(_navigation(tester).screen, PodScreen.nowPlaying);
+  });
 }
 
 void _portrait(WidgetTester tester) {
@@ -141,16 +197,75 @@ PodNavigationState _navigation(WidgetTester tester) =>
     tester.state(find.byType(PodNavigation));
 
 class _LibraryStub implements DeviceLibrary {
-  _LibraryStub({required this.songCount});
+  _LibraryStub({required this.songCount, this.albumCount = 3});
 
   final int songCount;
+  final int albumCount;
   final pages = <LibraryPage>[];
+  final albumPages = <LibraryPage>[];
+  final artworkRequests = <(String, ThumbnailSize)>[];
+  AlbumId? playedAlbum;
   List<String> loaded = [];
   bool played = false;
 
   @override
-  Future<LibraryCounts> libraryCounts() async =>
-      LibraryCounts(songs: songCount, albums: 3, artists: 1, playlists: 0);
+  Future<LibraryCounts> libraryCounts() async => LibraryCounts(
+    songs: songCount,
+    albums: albumCount,
+    artists: 1,
+    playlists: 0,
+  );
+
+  @override
+  Future<List<DeviceAlbum>> albums({required LibraryPage page}) async {
+    albumPages.add(page);
+    return [
+      for (
+        var index = page.offset;
+        index < albumCount && index < page.offset + page.limit;
+        index++
+      )
+        DeviceAlbum(
+          id: AlbumId(
+            title: 'Album ${index + 1}',
+            artist: 'Test Artist',
+            compilation: false,
+          ),
+          trackCount: 2,
+          artworkId: index == 0 ? 'cover-0' : null,
+        ),
+    ];
+  }
+
+  @override
+  Future<List<DeviceTrack>> albumTracks({required AlbumId id}) async {
+    playedAlbum = id;
+    return [
+      DeviceTrack(
+        id: 'disc-1-track-2',
+        title: 'First track',
+        album: id.title,
+        discNumber: 1,
+        trackNumber: 2,
+      ),
+      DeviceTrack(
+        id: 'disc-2-track-1',
+        title: 'Second track',
+        album: id.title,
+        discNumber: 2,
+        trackNumber: 1,
+      ),
+    ];
+  }
+
+  @override
+  Future<String?> artworkPath({
+    required String id,
+    required ThumbnailSize size,
+  }) async {
+    artworkRequests.add((id, size));
+    return null;
+  }
 
   @override
   Future<List<DeviceTrack>> songs({required LibraryPage page}) async {
