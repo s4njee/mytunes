@@ -8,11 +8,17 @@ import 'package:integration_test/integration_test.dart';
 import 'package:mytunes_pod/src/player_events.dart';
 import 'package:mytunes_pod/src/rust/api/device.dart';
 import 'package:mytunes_pod/src/rust/api/playback.dart';
+import 'package:mytunes_pod/src/rust/api/simple.dart' as core;
 import 'package:mytunes_pod/src/rust/frb_generated.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async => RustLib.init());
+
+  test('Rust ping returns pong', () {
+    expect(core.ping(), 'pong');
+    expect(core.coreVersion(), matches(RegExp(r'^\d+\.\d+\.\d+$')));
+  });
 
   test('reads the device library and persists settings and events', () async {
     final folder = await Directory.systemTemp.createTemp('mytunes-library');
