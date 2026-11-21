@@ -182,7 +182,7 @@ class _ClickWheelState extends State<ClickWheel> {
     final theme = MtTheme.of(context);
     final colors = theme.colors;
     final dragging = _drag != null;
-    final glyph = MtType.wheelGlyph.copyWith(color: colors.textTimecode);
+    final glyphColor = colors.textTimecode;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -227,19 +227,17 @@ class _ClickWheelState extends State<ClickWheel> {
                   _button(
                     _Button.previous,
                     'Previous',
-                    Center(child: Text('◀◀', style: glyph)),
+                    _transportGlyph(_TransportMark.previous, glyphColor),
                   ),
                   _button(
                     _Button.next,
                     'Next',
-                    Center(child: Text('▶▶', style: glyph)),
+                    _transportGlyph(_TransportMark.next, glyphColor),
                   ),
                   _button(
                     _Button.playPause,
                     'Play/Pause',
-                    Center(
-                      child: Text('▶ ❙❙', style: glyph.copyWith(fontSize: 14)),
-                    ),
+                    _transportGlyph(_TransportMark.playPause, glyphColor),
                   ),
                   _button(
                     _Button.centre,
@@ -251,12 +249,12 @@ class _ClickWheelState extends State<ClickWheel> {
                         border: Border.all(color: colors.accentHairline),
                         boxShadow: [
                           theme.brightness == Brightness.dark
-                              ? const BoxShadow(
+                              ? const CssBoxShadow(
                                   color: Color(0x99000000),
                                   offset: Offset(0, 4),
                                   blurRadius: 14,
                                 )
-                              : const BoxShadow(
+                              : const CssBoxShadow(
                                   color: Color(0x33141E2D),
                                   offset: Offset(0, 2),
                                   blurRadius: 9,
@@ -288,6 +286,61 @@ class _ClickWheelState extends State<ClickWheel> {
       ],
     );
   }
+}
+
+enum _TransportMark { previous, next, playPause }
+
+Widget _transportGlyph(_TransportMark mark, Color color) => Center(
+  child: CustomPaint(
+    size: const Size(38, 16),
+    painter: _TransportGlyph(mark, color),
+  ),
+);
+
+/// Draws the transport symbols independently of the platform's font fallback.
+class _TransportGlyph extends CustomPainter {
+  const _TransportGlyph(this.mark, this.color);
+
+  final _TransportMark mark;
+  final Color color;
+
+  void _triangle(
+    Canvas canvas,
+    Paint ink,
+    double left,
+    double width,
+    double height,
+  ) {
+    canvas.drawPath(
+      Path()
+        ..moveTo(left, 0.5 - height / 2)
+        ..lineTo(left + width, 0.5)
+        ..lineTo(left, 0.5 + height / 2)
+        ..close(),
+      ink,
+    );
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final ink = Paint()..color = color;
+    canvas.save();
+    canvas.translate(size.width / 2, size.height / 2);
+    if (mark == _TransportMark.playPause) {
+      _triangle(canvas, ink, -16.5, 8.5, 8);
+      canvas.drawRect(const Rect.fromLTWH(6.5, -6, 3.5, 12.5), ink);
+      canvas.drawRect(const Rect.fromLTWH(15, -6, 3.5, 12.5), ink);
+    } else {
+      if (mark == _TransportMark.previous) canvas.scale(-1, 1);
+      _triangle(canvas, ink, -13.5, 9, 9);
+      _triangle(canvas, ink, 4.5, 9, 9);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_TransportGlyph oldDelegate) =>
+      mark != oldDelegate.mark || color != oldDelegate.color;
 }
 
 enum _Button {
@@ -367,12 +420,12 @@ class _WheelFace extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           dark
-              ? const BoxShadow(
+              ? const CssBoxShadow(
                   color: Color(0x73000000),
                   offset: Offset(0, 10),
                   blurRadius: 26,
                 )
-              : const BoxShadow(
+              : const CssBoxShadow(
                   color: Color(0x29141E2D),
                   offset: Offset(0, 8),
                   blurRadius: 18,

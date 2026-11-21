@@ -59,12 +59,12 @@ class NowPlaying extends StatelessWidget {
                           borderRadius: radius,
                           boxShadow: [
                             dark
-                                ? const BoxShadow(
+                                ? const CssBoxShadow(
                                     color: Color(0x80000000),
                                     offset: Offset(0, 14),
                                     blurRadius: 30,
                                   )
-                                : const BoxShadow(
+                                : const CssBoxShadow(
                                     color: Color(0x2E141E2D),
                                     offset: Offset(0, 10),
                                     blurRadius: 24,

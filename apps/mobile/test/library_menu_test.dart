@@ -228,9 +228,9 @@ void main() {
     expect(library.seeks, [23000, 19000]);
 
     await tester.tap(find.text('PAUSE'));
-    await tester.tap(find.text('◀◀'));
-    await tester.tap(find.text('▶▶'));
-    await tester.tap(find.text('▶ ❙❙'));
+    await tester.tap(find.bySemanticsLabel('Previous'));
+    await tester.tap(find.bySemanticsLabel('Next'));
+    await tester.tap(find.bySemanticsLabel('Play/Pause'));
     await tester.pumpAndSettle();
     expect(library.transport, ['toggle', 'previous', 'next', 'toggle']);
 

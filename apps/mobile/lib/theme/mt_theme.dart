@@ -40,3 +40,15 @@ class MtTheme {
     appBarTheme: AppBarTheme(systemOverlayStyle: systemUi),
   );
 }
+
+/// A box shadow whose blur radius follows the CSS handoff.
+class CssBoxShadow extends BoxShadow {
+  const CssBoxShadow({
+    required super.color,
+    required super.offset,
+    required super.blurRadius,
+  });
+
+  @override
+  double get blurSigma => blurRadius / 2;
+}

@@ -164,7 +164,7 @@ void main() {
       );
       expect(find.text(centre), findsOneWidget);
       expect(find.text('DRAG RING TO $hint'), findsOneWidget);
-      expect(find.text('▶ ❙❙'), findsOneWidget);
+      expect(find.bySemanticsLabel('Play/Pause'), findsOneWidget);
     }
   });
 

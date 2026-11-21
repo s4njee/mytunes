@@ -191,7 +191,7 @@ class _AlbumTile extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: radius,
                 boxShadow: [
-                  BoxShadow(
+                  CssBoxShadow(
                     color: dark
                         ? (selected
                               ? const Color(0x66000000)
@@ -199,8 +199,8 @@ class _AlbumTile extends StatelessWidget {
                         : (selected
                               ? const Color(0x2E141E2D)
                               : const Color(0x24141E2D)),
-                    blurRadius: dark ? 20 : (selected ? 18 : 16),
-                    offset: Offset(0, dark || selected ? 8 : 6),
+                    blurRadius: dark ? 20 : 16,
+                    offset: Offset(0, dark ? 8 : 6),
                   ),
                   if (selected)
                     BoxShadow(color: colors.accent, spreadRadius: 2),
