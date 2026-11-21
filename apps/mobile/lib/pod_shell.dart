@@ -29,18 +29,16 @@ class PodShell extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(child: display),
-            DecoratedBox(
+            Container(
               decoration: BoxDecoration(
                 color: colors.deck,
                 border: Border(top: BorderSide(color: colors.rule)),
               ),
-              child: Padding(
-                padding: EdgeInsets.only(
-                  top: MtSpace.deckTop,
-                  bottom: math.max(MtSpace.deckBottom, safe.bottom),
-                ),
-                child: Center(child: deck),
+              padding: EdgeInsets.only(
+                top: MtSpace.deckTop,
+                bottom: math.max(MtSpace.deckBottom, safe.bottom),
               ),
+              child: Center(child: deck),
             ),
           ],
         ),
@@ -78,32 +76,30 @@ class PodDisplay extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          DecoratedBox(
+          Container(
             decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: colors.rule)),
             ),
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: MtSpace.headerBottom),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _eyebrow(colors.accent),
-                    ),
+            padding: const EdgeInsets.only(bottom: MtSpace.headerBottom),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _eyebrow(colors.accent),
                   ),
-                  const SizedBox(width: MtSpace.rowGap),
-                  Expanded(
-                    child: Text(
-                      metadata,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.end,
-                      style: MtType.meta.copyWith(color: colors.textTertiary),
-                    ),
+                ),
+                const SizedBox(width: MtSpace.rowGap),
+                Expanded(
+                  child: Text(
+                    metadata,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: MtType.meta.copyWith(color: colors.textTertiary),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           Expanded(child: body),

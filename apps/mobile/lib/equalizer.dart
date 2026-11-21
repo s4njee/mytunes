@@ -47,6 +47,7 @@ class Equalizer extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         SizedBox(height: 1, child: ColoredBox(color: colors.rule)),
+        const SizedBox(height: 14),
         for (final option in EqualizerOption.values)
           _Option(
             option: option,
@@ -119,10 +120,13 @@ class _Band extends StatelessWidget {
                           left: 0,
                           right: 0,
                           height: height,
-                          child: ColoredBox(
-                            color: selected
-                                ? colors.accent
-                                : colors.accentMuted,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(2),
+                              color: selected
+                                  ? colors.accent
+                                  : colors.accentMuted,
+                            ),
                           ),
                         ),
                       ],
@@ -193,7 +197,9 @@ class _Option extends StatelessWidget {
             ),
             Text(
               enabled ? 'ON' : 'OFF',
-              style: MtType.meta.copyWith(
+              style: MtType.timecode.copyWith(
+                fontWeight: FontWeight.w500,
+                letterSpacing: 1.2,
                 color: enabled ? colors.accent : colors.textCount,
               ),
             ),
