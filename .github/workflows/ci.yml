@@ -241,3 +241,17 @@ jobs:
           name: mytunes-pod-ios-unsigned
           path: ${{ runner.temp }}/mytunes-pod-ios-unsigned.tar.gz
           if-no-files-found: error
+      - name: Run the Flutter–Rust bridge integration tests on iPhone Simulator
+        timeout-minutes: 15
+        run: |
+          set -o pipefail
+          simulator_id=$(xcrun simctl list devices available -j | jq -r '
+            [.devices | to_entries[] | select(.key | contains(".iOS-"))
+            | .value[] | select(.name | startswith("iPhone"))]
+            | sort_by(.state == "Booted") | last | .udid // empty')
+          if [ -z "$simulator_id" ]; then
+            echo 'No available iPhone simulator on this runner.'
+            exit 1
+          fi
+          xcrun simctl bootstatus "$simulator_id" -b
+          flutter test --no-pub integration_test -d "$simulator_id"

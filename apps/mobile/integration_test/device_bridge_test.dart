@@ -140,16 +140,37 @@ void main() {
         expect((await library.libraryCounts()).songs, 1);
         await source.delete();
 
+        final otherSource = await File('${folder.path}/Second.wav')
+            .writeAsBytes(_silentWave(seconds: 1));
+        expect(
+          (await library.importDevFiles(paths: [otherSource.path])).imported,
+          1,
+        );
+        final updated = await library.songs(
+          page: const LibraryPage(offset: 0, limit: 20),
+        );
+        final second = updated.singleWhere((entry) => entry.title == 'Second');
+        final restored = await library.tracksByIds(
+          ids: [second.id, 'removed-track', track.id, second.id],
+        );
+        expect(restored, [second, track, second]);
+
         await library.loadQueue(trackIds: [track.id], startIndex: 0);
         final queued = await library.playerEvents().first;
         expect(queued.trackId, track.id);
         expect(queued.state, PlaybackState.paused);
         await library.play();
         await library.seek(positionMs: BigInt.from(400));
-        final playing = await library.playerEvents().first;
+        final playing = await library
+            .playerEvents()
+            .firstWhere(
+              (event) =>
+                  event.state == PlaybackState.playing &&
+                  event.positionMs.toInt() >= 550,
+            )
+            .timeout(const Duration(seconds: 6));
         expect(playing.trackId, track.id);
         expect(playing.state, PlaybackState.playing);
-        expect(playing.positionMs.toInt(), greaterThanOrEqualTo(400));
         await library.pause();
       } finally {
         await library.close();
@@ -164,9 +185,9 @@ Matcher _bridgeError(String text) => isA<AnyhowException>().having(
   contains(text),
 );
 
-Uint8List _silentWave() {
+Uint8List _silentWave({int seconds = 3}) {
   const sampleRate = 8000;
-  const pcmLength = 3 * sampleRate * 2;
+  final pcmLength = seconds * sampleRate * 2;
   final wave = ByteData(44 + pcmLength);
   final bytes = wave.buffer.asUint8List();
   bytes.setAll(0, 'RIFF'.codeUnits);
