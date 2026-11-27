@@ -177,23 +177,23 @@ importers:
     dependencies:
       '@solidjs/web':
         specifier: 2.0.1
-        version: 2.0.1(solid-js@2.0.1)
+        version: 2.0.1(solid-js@2.0.3)
       '@tauri-apps/api':
         specifier: 2.12.5
         version: 2.12.5
       solid-js:
-        specifier: 2.0.1
-        version: 2.0.1
+        specifier: 2.0.3
+        version: 2.0.3
     devDependencies:
       '@biomejs/biome':
         specifier: 2.6.8
         version: 2.6.8
       '@solidjs/testing-library':
         specifier: 1.0.0-rc.2
-        version: 1.0.0-rc.2(@solidjs/web@2.0.1(solid-js@2.0.1))(solid-js@2.0.1)
+        version: 1.0.0-rc.2(@solidjs/web@2.0.1(solid-js@2.0.3))(solid-js@2.0.3)
       '@solidjs/vite-plugin':
         specifier: 3.0.1
-        version: 3.0.1(@solidjs/web@2.0.1(solid-js@2.0.1))(solid-js@2.0.1)(vite@8.3.8(@types/node@26.6.6))
+        version: 3.0.1(@solidjs/web@2.0.1(solid-js@2.0.3))(solid-js@2.0.3)(vite@8.3.8(@types/node@26.6.6))
       '@tauri-apps/cli':
         specifier: 2.12.5
         version: 2.12.5
@@ -495,8 +495,8 @@ packages:
   '@solidjs/compiler@2.0.0':
     resolution: {integrity: sha512-Spgqz1+eojQ2pDl4yajnajIjX/kSusjTK/6mC6Fm7sAZ3YBI0yP4/epRR1hV08TU3YAH4xLBmZ6wjb1zC134Sw==}
 
-  '@solidjs/signals@2.0.1':
-    resolution: {integrity: sha512-nTdIk7UgGLwATg0wCT/wH/G62aWYjGol2AnqdrN4qVyV7snYTnYoesgJ/G7xRkO34mAr3tayt0cu1+k/dt0lmA==}
+  '@solidjs/signals@2.0.3':
+    resolution: {integrity: sha512-M6+kiJflqSvJRHRcmdsdIXpPLPkQrY817zWKKfxZ3z3ZRE5eEtddtWPrDXY4IM1Wz3zAqG+3Fx/HQIkAtpRwnA==}
     engines: {node: '>=22.12.0'}
 
   '@solidjs/testing-library@1.0.0-rc.2':
@@ -1022,8 +1022,8 @@ packages:
     resolution: {integrity: sha512-7z9x1flFYfZBz+LfDkXNfm5UIhZJ/97ASaV8Q1wctoVkeqVfv+tLPsWebeMXBNw6XprvwxDE5wC5Ylqmr+iSrA==}
     engines: {node: '>=20'}
 
-  solid-js@2.0.1:
-    resolution: {integrity: sha512-5bBwRCblIZ672y2H2aB5KIOfeP/N+acx1YoCjNCWYFc4ZI/Y7y7n/6N1kei8AgWmcJJQ1m5SV90rs3V8CPAnYQ==}
+  solid-js@2.0.3:
+    resolution: {integrity: sha512-XOHstv+GAJjfcSGZU9xfX5q6Mbqmv72IcdWh2JuMx3KvBbfpQPdy/Yl00A1ouk7A0etjqhNe799CPdr6i7koWg==}
     engines: {node: '>=22.12.0'}
 
   source-map-js@1.2.2:
@@ -1404,31 +1404,31 @@ snapshots:
       '@solidjs/compiler-wasm32-wasi': 2.0.0
       '@solidjs/compiler-win32-x64-msvc': 2.0.0
 
-  '@solidjs/signals@2.0.1': {}
+  '@solidjs/signals@2.0.3': {}
 
-  '@solidjs/testing-library@1.0.0-rc.2(@solidjs/web@2.0.1(solid-js@2.0.1))(solid-js@2.0.1)':
+  '@solidjs/testing-library@1.0.0-rc.2(@solidjs/web@2.0.1(solid-js@2.0.3))(solid-js@2.0.3)':
     dependencies:
-      '@solidjs/web': 2.0.1(solid-js@2.0.1)
+      '@solidjs/web': 2.0.1(solid-js@2.0.3)
       '@testing-library/dom': 10.4.2
-      solid-js: 2.0.1
+      solid-js: 2.0.3
 
-  '@solidjs/vite-plugin@3.0.1(@solidjs/web@2.0.1(solid-js@2.0.1))(solid-js@2.0.1)(vite@8.3.8(@types/node@26.6.6))':
+  '@solidjs/vite-plugin@3.0.1(@solidjs/web@2.0.1(solid-js@2.0.3))(solid-js@2.0.3)(vite@8.3.8(@types/node@26.6.6))':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@solidjs/compiler': 2.0.0
-      '@solidjs/web': 2.0.1(solid-js@2.0.1)
+      '@solidjs/web': 2.0.1(solid-js@2.0.3)
       magic-string: 0.30.21
       merge-anything: 5.1.7
-      solid-js: 2.0.1
+      solid-js: 2.0.3
       vite: 8.3.8(@types/node@26.6.6)
       vitefu: 1.1.4(vite@8.3.8(@types/node@26.6.6))
 
-  '@solidjs/web@2.0.1(solid-js@2.0.1)':
+  '@solidjs/web@2.0.1(solid-js@2.0.3)':
     dependencies:
       csstype: 3.2.4
       seroval: 1.8.1
       seroval-plugins: 1.8.0(seroval@1.8.1)
-      solid-js: 2.0.1
+      solid-js: 2.0.3
 
   '@tauri-apps/api@2.12.5': {}
 
@@ -1808,9 +1808,9 @@ snapshots:
 
   seroval@1.8.1: {}
 
-  solid-js@2.0.1:
+  solid-js@2.0.3:
     dependencies:
-      '@solidjs/signals': 2.0.1
+      '@solidjs/signals': 2.0.3
       seroval: 1.8.1
       seroval-plugins: 1.8.0(seroval@1.8.1)
 

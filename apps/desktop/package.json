@@ -20,7 +20,7 @@
   "dependencies": {
     "@solidjs/web": "2.0.1",
     "@tauri-apps/api": "2.12.5",
-    "solid-js": "2.0.1"
+    "solid-js": "2.0.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.8",
