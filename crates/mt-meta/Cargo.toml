@@ -17,7 +17,7 @@ serde.workspace = true
 specta.workspace = true
 specta-typescript.workspace = true
 tempfile = "=3.27.0"
-walkdir = "=2.5.0"
+walkdir = "=2.5.1"
 thiserror.workspace = true
 
 [dev-dependencies]
