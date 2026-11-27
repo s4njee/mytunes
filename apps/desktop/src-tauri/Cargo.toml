@@ -19,7 +19,7 @@ mt-app.workspace = true
 mt-audio.workspace = true
 mt-meta.workspace = true
 mt-types.workspace = true
-notify = "=8.2.2"
+notify = "=9.0.0"
 serde.workspace = true
 serde_json.workspace = true
 specta.workspace = true
