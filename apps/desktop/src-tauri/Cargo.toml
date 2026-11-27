@@ -12,7 +12,7 @@ publish.workspace = true
 name = "mytunes_desktop_lib"
 
 [build-dependencies]
-tauri-build = { version = "=2.7.5", features = [] }
+tauri-build = { version = "=2.7.6", features = [] }
 
 [dependencies]
 mt-app.workspace = true
